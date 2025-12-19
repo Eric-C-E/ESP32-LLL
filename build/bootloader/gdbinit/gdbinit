@@ -1,0 +1,2 @@
+source /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/build/bootloader/gdbinit/symbols
+source /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/build/bootloader/gdbinit/connect

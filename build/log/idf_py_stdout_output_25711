@@ -1,0 +1,136 @@
+Command: cmake -G Ninja -B /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/eric/.espressif/python_env/idf6.0_py3.10_env/bin/python -DESP_PLATFORM=1 -DIDF_TARGET=esp32s3 -DCCACHE_ENABLE=False /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL
+-- Existing sdkconfig '/home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig' renamed to '/home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig.old'.
+-- Found Git: /usr/bin/git (found version "2.34.1") 
+-- Component directory /home/eric/esp/v6.0/esp-idf/components/mqtt does not contain a CMakeLists.txt file. No component will be added
+-- Minimal build - ON
+-- The C compiler identification is GNU 15.2.0
+-- The CXX compiler identification is GNU 15.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: /home/eric/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /home/eric/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /home/eric/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Building ESP-IDF components for target esp32s3
+NOTICE: Skipping optional dependency: espressif/dp83848
+NOTICE: Skipping optional dependency: espressif/ip101
+NOTICE: Skipping optional dependency: espressif/ksz80xx
+NOTICE: Skipping optional dependency: espressif/lan867x
+NOTICE: Skipping optional dependency: espressif/lan87xx
+NOTICE: Skipping optional dependency: espressif/rtl8201
+NOTICE: Skipping optional dependency: esp_stubs
+NOTICE: Using component placed at /home/eric/esp/v6.0/esp-idf/examples/common_components/protocol_examples_common for dependency "protocol_examples_common", specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main/idf_component.yml
+NOTICE: Updating lock file at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/dependencies.lock
+NOTICE: Processing 5 dependencies:
+NOTICE: [1/5] espressif/cmake_utilities (0.5.3)
+NOTICE: [2/5] espressif/esp_lcd_gc9a01 (2.0.4)
+NOTICE: [3/5] espressif/ethernet_init (1.2.0)
+NOTICE: [4/5] protocol_examples_common (*) (/home/eric/esp/v6.0/esp-idf/examples/common_components/protocol_examples_common)
+NOTICE: [5/5] idf (6.0.0)
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5;esp32c61 SoCs
+NOTICE: Skipping optional dependency: esp_stubs
+NOTICE: Skipping optional dependency: espressif/dp83848
+NOTICE: Skipping optional dependency: espressif/ip101
+NOTICE: Skipping optional dependency: espressif/ksz80xx
+NOTICE: Skipping optional dependency: espressif/lan867x
+NOTICE: Skipping optional dependency: espressif/lan87xx
+NOTICE: Skipping optional dependency: espressif/rtl8201
+-- KCONFIG_REPORT_VERBOSITY not set, using default
+-- Project sdkconfig file /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig
+Loading defaults file /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig.defaults...
+warning: unknown kconfig symbol 'UNITY_ENABLE_IDF_TEST_RUNNER' assigned to 'n' in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig.defaults
+NOTICE: Manifest files have changed, solving dependencies.
+NOTICE: Skipping optional dependency: esp_stubs
+NOTICE: Skipping optional dependency: espressif/ch390
+NOTICE: Skipping optional dependency: espressif/dm9051
+NOTICE: Skipping optional dependency: espressif/dp83848
+NOTICE: Skipping optional dependency: espressif/enc28j60
+NOTICE: Skipping optional dependency: espressif/ip101
+NOTICE: Skipping optional dependency: espressif/ksz80xx
+NOTICE: Skipping optional dependency: espressif/ksz8851snl
+NOTICE: Skipping optional dependency: espressif/lan865x
+NOTICE: Skipping optional dependency: espressif/lan867x
+NOTICE: Skipping optional dependency: espressif/lan87xx
+NOTICE: Skipping optional dependency: espressif/rtl8201
+NOTICE: Skipping optional dependency: espressif/w5500
+NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities for dependency "espressif/cmake_utilities"(introduced by component "espressif/esp_lcd_gc9a01")
+NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01 for dependency "espressif/esp_lcd_gc9a01", specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main/idf_component.yml
+NOTICE: Using component placed at /home/eric/esp/v6.0/esp-idf/examples/common_components/protocol_examples_common for dependency "protocol_examples_common", specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main/idf_component.yml
+NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities for dependency "espressif/cmake_utilities"(introduced by component "espressif/esp_lcd_gc9a01"), specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main/idf_component.yml
+....NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__ethernet_init for dependency "espressif/ethernet_init"(introduced by component "protocol_examples_common"), specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main/idf_component.yml
+....NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities for dependency "espressif/cmake_utilities", specified in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01/idf_component.yml
+..NOTICE: Using component placed at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__ethernet_init for dependency "espressif/ethernet_init", specified in /home/eric/esp/v6.0/esp-idf/examples/common_components/protocol_examples_common/idf_component.yml
+.NOTICE: Updating lock file at /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/dependencies.lock
+NOTICE: Processing 4 dependencies:
+NOTICE: [1/4] espressif/cmake_utilities (0.5.3) (/home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities)
+NOTICE: [2/4] espressif/esp_lcd_gc9a01 (2.0.4) (/home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01)
+NOTICE: [3/4] espressif/ethernet_init (1.2.0) (/home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__ethernet_init)
+NOTICE: [4/4] idf (6.0.0)
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5;esp32c61 SoCs
+NOTICE: Skipping optional dependency: esp_stubs
+NOTICE: Skipping optional dependency: espressif/ch390
+NOTICE: Skipping optional dependency: espressif/dm9051
+NOTICE: Skipping optional dependency: espressif/dp83848
+NOTICE: Skipping optional dependency: espressif/enc28j60
+NOTICE: Skipping optional dependency: espressif/ip101
+NOTICE: Skipping optional dependency: espressif/ksz80xx
+NOTICE: Skipping optional dependency: espressif/ksz8851snl
+NOTICE: Skipping optional dependency: espressif/lan865x
+NOTICE: Skipping optional dependency: espressif/lan867x
+NOTICE: Skipping optional dependency: espressif/lan87xx
+NOTICE: Skipping optional dependency: espressif/rtl8201
+NOTICE: Skipping optional dependency: espressif/w5500
+-- KCONFIG_REPORT_VERBOSITY not set, using default
+-- Project sdkconfig file /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig
+Loading defaults file /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig.defaults...
+warning: unknown kconfig symbol 'UNITY_ENABLE_IDF_TEST_RUNNER' assigned to 'n' in /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/sdkconfig.defaults
+-- Compiler supported targets: xtensa-esp-elf
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- App "ESP32-LLL" version: 33d50f8-dirty
+-- Found Python3: /home/eric/.espressif/python_env/idf6.0_py3.10_env/bin/python (found version "3.10.12") found components: Interpreter 
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS - Success
+-- USING O3
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_hal_wdt/esp32s3/rom.wdt.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_system/ld/esp32s3/memory.ld.in
+--   -> Preprocessing .in script: /home/eric/esp/v6.0/esp-idf/components/esp_system/ld/esp32s3/memory.ld.in
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_system/ld/esp32s3/sections.ld.in
+--   -> Preprocessing .in script: /home/eric/esp/v6.0/esp-idf/components/esp_system/ld/esp32s3/sections.ld.in
+--   -> Applying ldgen processing: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/build/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_master.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_50.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_smp.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_dtm.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_test.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_scan.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script /home/eric/esp/v6.0/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- ESP_LCD_GC9A01: 2.0.4
+-- Components: app_update bootloader bootloader_support console cxx driver efuse esp_app_format esp_blockdev esp_bootloader_format esp_coex esp_common esp_driver_bitscrambler esp_driver_gpio esp_driver_i2c esp_driver_i2s esp_driver_parlio esp_driver_spi esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_hal_ana_conv esp_hal_dma esp_hal_gpio esp_hal_i2c esp_hal_i2s esp_hal_lcd esp_hal_mspi esp_hal_parlio esp_hal_timg esp_hal_touch_sens esp_hal_twai esp_hal_usb esp_hal_wdt esp_hw_support esp_lcd esp_libc esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_stdio esp_system esp_timer esp_usb_cdc_rom_console esp_wifi espressif__cmake_utilities espressif__esp_lcd_gc9a01 espressif__ethernet_init esptool_py freertos hal heap ieee802154 log lwip main mbedtls nvs_flash nvs_sec_provider openthread partition_table protocol_examples_common pthread soc spi_flash vfs wpa_supplicant xtensa
+-- Component paths: /home/eric/esp/v6.0/esp-idf/components/app_update /home/eric/esp/v6.0/esp-idf/components/bootloader /home/eric/esp/v6.0/esp-idf/components/bootloader_support /home/eric/esp/v6.0/esp-idf/components/console /home/eric/esp/v6.0/esp-idf/components/cxx /home/eric/esp/v6.0/esp-idf/components/driver /home/eric/esp/v6.0/esp-idf/components/efuse /home/eric/esp/v6.0/esp-idf/components/esp_app_format /home/eric/esp/v6.0/esp-idf/components/esp_blockdev /home/eric/esp/v6.0/esp-idf/components/esp_bootloader_format /home/eric/esp/v6.0/esp-idf/components/esp_coex /home/eric/esp/v6.0/esp-idf/components/esp_common /home/eric/esp/v6.0/esp-idf/components/esp_driver_bitscrambler /home/eric/esp/v6.0/esp-idf/components/esp_driver_gpio /home/eric/esp/v6.0/esp-idf/components/esp_driver_i2c /home/eric/esp/v6.0/esp-idf/components/esp_driver_i2s /home/eric/esp/v6.0/esp-idf/components/esp_driver_parlio /home/eric/esp/v6.0/esp-idf/components/esp_driver_spi /home/eric/esp/v6.0/esp-idf/components/esp_driver_uart /home/eric/esp/v6.0/esp-idf/components/esp_driver_usb_serial_jtag /home/eric/esp/v6.0/esp-idf/components/esp_eth /home/eric/esp/v6.0/esp-idf/components/esp_event /home/eric/esp/v6.0/esp-idf/components/esp_hal_ana_conv /home/eric/esp/v6.0/esp-idf/components/esp_hal_dma /home/eric/esp/v6.0/esp-idf/components/esp_hal_gpio /home/eric/esp/v6.0/esp-idf/components/esp_hal_i2c /home/eric/esp/v6.0/esp-idf/components/esp_hal_i2s /home/eric/esp/v6.0/esp-idf/components/esp_hal_lcd /home/eric/esp/v6.0/esp-idf/components/esp_hal_mspi /home/eric/esp/v6.0/esp-idf/components/esp_hal_parlio /home/eric/esp/v6.0/esp-idf/components/esp_hal_timg /home/eric/esp/v6.0/esp-idf/components/esp_hal_touch_sens /home/eric/esp/v6.0/esp-idf/components/esp_hal_twai /home/eric/esp/v6.0/esp-idf/components/esp_hal_usb /home/eric/esp/v6.0/esp-idf/components/esp_hal_wdt /home/eric/esp/v6.0/esp-idf/components/esp_hw_support /home/eric/esp/v6.0/esp-idf/components/esp_lcd /home/eric/esp/v6.0/esp-idf/components/esp_libc /home/eric/esp/v6.0/esp-idf/components/esp_mm /home/eric/esp/v6.0/esp-idf/components/esp_netif /home/eric/esp/v6.0/esp-idf/components/esp_netif_stack /home/eric/esp/v6.0/esp-idf/components/esp_partition /home/eric/esp/v6.0/esp-idf/components/esp_phy /home/eric/esp/v6.0/esp-idf/components/esp_pm /home/eric/esp/v6.0/esp-idf/components/esp_psram /home/eric/esp/v6.0/esp-idf/components/esp_ringbuf /home/eric/esp/v6.0/esp-idf/components/esp_rom /home/eric/esp/v6.0/esp-idf/components/esp_security /home/eric/esp/v6.0/esp-idf/components/esp_stdio /home/eric/esp/v6.0/esp-idf/components/esp_system /home/eric/esp/v6.0/esp-idf/components/esp_timer /home/eric/esp/v6.0/esp-idf/components/esp_usb_cdc_rom_console /home/eric/esp/v6.0/esp-idf/components/esp_wifi /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01 /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__ethernet_init /home/eric/esp/v6.0/esp-idf/components/esptool_py /home/eric/esp/v6.0/esp-idf/components/freertos /home/eric/esp/v6.0/esp-idf/components/hal /home/eric/esp/v6.0/esp-idf/components/heap /home/eric/esp/v6.0/esp-idf/components/ieee802154 /home/eric/esp/v6.0/esp-idf/components/log /home/eric/esp/v6.0/esp-idf/components/lwip /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/main /home/eric/esp/v6.0/esp-idf/components/mbedtls /home/eric/esp/v6.0/esp-idf/components/nvs_flash /home/eric/esp/v6.0/esp-idf/components/nvs_sec_provider /home/eric/esp/v6.0/esp-idf/components/openthread /home/eric/esp/v6.0/esp-idf/components/partition_table /home/eric/esp/v6.0/esp-idf/examples/common_components/protocol_examples_common /home/eric/esp/v6.0/esp-idf/components/pthread /home/eric/esp/v6.0/esp-idf/components/soc /home/eric/esp/v6.0/esp-idf/components/spi_flash /home/eric/esp/v6.0/esp-idf/components/vfs /home/eric/esp/v6.0/esp-idf/components/wpa_supplicant /home/eric/esp/v6.0/esp-idf/components/xtensa
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/build
