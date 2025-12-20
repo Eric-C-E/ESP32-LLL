@@ -6,6 +6,10 @@ idf_component_register(
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
+        driver
+        freertos
+        heap
+        log
         nvs_flash
         esp_lcd
         esp_lcd_gc9a01

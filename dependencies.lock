@@ -1,27 +1,153 @@
 dependencies:
   espressif/cmake_utilities:
-    dependencies: []
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
     source:
-      path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__cmake_utilities
-      type: local
+      registry_url: https://components.espressif.com
+      type: service
     version: 0.5.3
   espressif/esp_lcd_gc9a01:
-    dependencies: []
+    component_hash: e60bc2b5649c7679bd010797a875ae64b2a57cf9cdbd6a2bf7a0ade66913edc0
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
     source:
-      path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01
-      type: local
+      registry_url: https://components.espressif.com/
+      type: service
     version: 2.0.4
   espressif/esp_lvgl_port:
-    dependencies: []
+    component_hash: f872401524cb645ee6ff1c9242d44fb4ddcfd4d37d7be8b9ed3f4e85a404efcd
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.1'
+    - name: lvgl/lvgl
+      registry_url: https://components.espressif.com
+      require: public
+      version: '>=8,<10'
     source:
-      path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lvgl_port
-      type: local
+      registry_url: https://components.espressif.com/
+      type: service
     version: 2.7.0
   espressif/ethernet_init:
-    dependencies: []
+    component_hash: b7303f1482091766b9b653ec8332775a9485f4df3c69141577de82847c4d2adf
+    dependencies:
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_CH390} == 1
+      name: espressif/ch390
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_DM9051} == 1
+      name: espressif/dm9051
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      version: '*'
+    - matches:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      name: espressif/dp83848
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_DP83848} == 1
+      version: '*'
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_ENC28J60} == 1
+      name: espressif/enc28j60
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - matches:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      name: espressif/ip101
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_IP101} == 1
+      version: '*'
+    - matches:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      name: espressif/ksz80xx
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_KSZ80XX} == 1
+      version: '*'
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_KSZ8851SNL} == 1
+      name: espressif/ksz8851snl
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      version: '*'
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_LAN865X} == 1
+      name: espressif/lan865x
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^0.1.1
+    - name: espressif/lan867x
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_LAN867X} == 1
+      version: '>=2.0.0'
+    - matches:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      name: espressif/lan87xx
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_LAN87XX} == 1
+      version: '*'
+    - matches:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      name: espressif/rtl8201
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: target in [esp32, esp32p4]
+      - if: $CONFIG{ETHERNET_PHY_USE_RTL8201} == 1
+      version: '*'
+    - matches:
+      - if: $CONFIG{ETHERNET_SPI_USE_W5500} == 1
+      name: espressif/w5500
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=6.0
+        version: ^1.0.0
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=5.4.3,!=5.5.0,!=5.5.1'
     source:
-      path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__ethernet_init
-      type: local
+      registry_url: https://components.espressif.com/
+      type: service
     version: 1.2.0
   idf:
     source:
@@ -45,13 +171,10 @@ dependencies:
       type: local
     version: '*'
 direct_dependencies:
-- espressif/cmake_utilities
 - espressif/esp_lcd_gc9a01
 - espressif/esp_lvgl_port
-- espressif/ethernet_init
-- idf
 - lvgl/lvgl
 - protocol_examples_common
-manifest_hash: f13a48f44ad1880bd5de05bb3c41fcd41eb6802a1dc6152016ea772ce22e7408
+manifest_hash: 5f99f7153f87ccf66e415eb07c65c407f02b5fa81cacfbc4ec66776e30da4523
 target: esp32s3
 version: 2.0.0
