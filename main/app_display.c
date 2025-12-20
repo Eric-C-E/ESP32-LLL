@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -30,6 +31,25 @@
 #define PIN_NUM_MISO -1
 
 static const char *TAG = "display_task";
+static SemaphoreHandle_t s_flush_sem = NULL;
+
+#define LCD_INVERT_COLORS true
+
+static inline uint16_t lcd_swap_color(uint16_t color)
+{
+    return (uint16_t)((color << 8) | (color >> 8));
+}
+
+static bool lcd_flush_ready(esp_lcd_panel_io_handle_t panel_io,
+                            esp_lcd_panel_io_event_data_t *edata,
+                            void *user_ctx)
+{
+    (void)panel_io;
+    (void)edata;
+    BaseType_t high_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR((SemaphoreHandle_t)user_ctx, &high_task_woken);
+    return high_task_woken == pdTRUE;
+}
 
 static void display_task(void *arg)
 {
@@ -45,6 +65,13 @@ static void display_task(void *arg)
     };
     ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
+    s_flush_sem = xSemaphoreCreateBinary();
+    if (!s_flush_sem) {
+        ESP_LOGE(TAG, "Failed to create flush semaphore");
+        vTaskDelay(portMAX_DELAY);
+        return;
+    }
+
     esp_lcd_panel_io_handle_t io_handle = NULL;
     esp_lcd_panel_io_spi_config_t io_config = {
         .dc_gpio_num = PIN_NUM_DC,
@@ -53,7 +80,9 @@ static void display_task(void *arg)
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
         .spi_mode = 0,
-        .trans_queue_depth = 10,
+        .trans_queue_depth = 1,
+        .on_color_trans_done = lcd_flush_ready,
+        .user_ctx = s_flush_sem,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(LCD_HOST, &io_config, &io_handle));
 
@@ -61,11 +90,11 @@ static void display_task(void *arg)
     esp_lcd_panel_dev_config_t panel_config = {
         .reset_gpio_num = PIN_NUM_RST,
         #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-            .color_space = ESP_LCD_COLOR_SPACE_RGB,
+            .color_space = ESP_LCD_COLOR_SPACE_BGR,
         #elif ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-            .rgb_endian = LCD_RGB_ENDIAN_RGB,
+            .rgb_endian = LCD_RGB_ENDIAN_BGR,
         #else
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
         #endif
             .bits_per_pixel = 16,
     };
@@ -74,6 +103,7 @@ static void display_task(void *arg)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, LCD_INVERT_COLORS));
 
     const int lines = 40;
     const size_t buf_size = LCD_H_RES * lines * 2;
@@ -84,18 +114,45 @@ static void display_task(void *arg)
         return;
     }
 
-    const uint16_t red = 0xF800;
-    for (size_t i = 0; i < buf_size; i += 2) {
-        buf[i + 0] = (red >> 8) & 0xFF;
-        buf[i + 1] = (red >> 0) & 0xFF;
+    for (int y = 0; y < LCD_V_RES; y++) {
+        for (int x = 0; x < LCD_H_RES; x++) {
+            uint16_t color = (x == LCD_H_RES / 2 || y == LCD_V_RES / 2) ? 0xF800 : 0x0000;
+            ((uint16_t *)buf)[(y % lines) * LCD_H_RES + x] = lcd_swap_color(color);
+        }
+        if ((y + 1) % lines == 0) {
+            xSemaphoreTake(s_flush_sem, 0);
+            ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y + 1 - lines, LCD_H_RES, y + 1, buf));
+            xSemaphoreTake(s_flush_sem, portMAX_DELAY);
+        }
+    }
+    int remaining_lines = LCD_V_RES % lines;
+    if (remaining_lines) {
+        xSemaphoreTake(s_flush_sem, 0);
+        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, LCD_V_RES - remaining_lines, LCD_H_RES, LCD_V_RES, buf));
+        xSemaphoreTake(s_flush_sem, portMAX_DELAY);
     }
 
-    for (int y = 0; y < LCD_V_RES; y += lines) {
-        int y_end = y + lines;
-        if (y_end > LCD_V_RES) {
-            y_end = LCD_V_RES;
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    for (int y = 0; y < LCD_V_RES; y++) {
+        for (int x = 0; x < LCD_H_RES; x++) {
+            uint8_t r = (x * 31) / (LCD_H_RES - 1);
+            uint8_t g = (y * 63) / (LCD_V_RES - 1);
+            uint8_t b = ((LCD_H_RES - 1 - x) * 31) / (LCD_H_RES - 1);
+            uint16_t color = (r << 11) | (g << 5) | b;
+            ((uint16_t *)buf)[(y % lines) * LCD_H_RES + x] = lcd_swap_color(color);
         }
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y, LCD_H_RES, y_end, buf));
+        if ((y + 1) % lines == 0) {
+            xSemaphoreTake(s_flush_sem, 0);
+            ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, y + 1 - lines, LCD_H_RES, y + 1, buf));
+            xSemaphoreTake(s_flush_sem, portMAX_DELAY);
+        }
+    }
+    remaining_lines = LCD_V_RES % lines;
+    if (remaining_lines) {
+        xSemaphoreTake(s_flush_sem, 0);
+        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, LCD_V_RES - remaining_lines, LCD_H_RES, LCD_V_RES, buf));
+        xSemaphoreTake(s_flush_sem, portMAX_DELAY);
     }
 
     free(buf);

@@ -11,6 +11,12 @@ dependencies:
       path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lcd_gc9a01
       type: local
     version: 2.0.4
+  espressif/esp_lvgl_port:
+    dependencies: []
+    source:
+      path: /home/eric/Desktop/waveshare_128_lcd/ESP32-LLL/managed_components/espressif__esp_lvgl_port
+      type: local
+    version: 2.7.0
   espressif/ethernet_init:
     dependencies: []
     source:
@@ -21,6 +27,13 @@ dependencies:
     source:
       type: idf
     version: 6.0.0
+  lvgl/lvgl:
+    component_hash: 17e68bfd21f0edf4c3ee838e2273da840bf3930e5dbc3bfa6c1190c3aed41f9f
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 9.4.0
   protocol_examples_common:
     dependencies:
     - name: espressif/ethernet_init
@@ -34,9 +47,11 @@ dependencies:
 direct_dependencies:
 - espressif/cmake_utilities
 - espressif/esp_lcd_gc9a01
+- espressif/esp_lvgl_port
 - espressif/ethernet_init
 - idf
+- lvgl/lvgl
 - protocol_examples_common
-manifest_hash: f580fcf14277f35c50f1673a5d73300c0de27b8a0eb9c586d05bed54ea633678
+manifest_hash: f13a48f44ad1880bd5de05bb3c41fcd41eb6802a1dc6152016ea772ce22e7408
 target: esp32s3
 version: 2.0.0
