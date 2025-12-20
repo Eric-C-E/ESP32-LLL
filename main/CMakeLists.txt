@@ -7,10 +7,14 @@ idf_component_register(
         "."
     PRIV_REQUIRES
         driver
+        esp_common
+        esp_lvgl_port
         freertos
         heap
         log
         nvs_flash
         esp_lcd
         esp_lcd_gc9a01
+        lvgl
+    REQUIRES unity
 )
