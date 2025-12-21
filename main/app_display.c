@@ -18,9 +18,6 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 
-#include "unity.h"
-#include "unity_test_runner.h"
-
 #include "esp_lvgl_port.h"
 
 //LCD SPI host and size
@@ -162,66 +159,47 @@ esp_err_t app_lvgl_deinit(void)
     return ESP_OK;
 }
 
-//current main display function
-
-void app_main_display(void)
-{
-    lv_obj_t *scr = lv_scr_act();
-
-    /*task lock*/
-    lvgl_port_lock(0);
-
-    /* put APPLICATION CODE HERE */
-
-    //label
-    lv_obj_t *label = lv_label_create(scr);
-    lv_obj_set_width(label, LCD_H_RES);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    #if LVGL_VERSION_MAJOR == 8
-    lv_label_set_recolor(label, true);
-    lv_label_set_text(label, "#FF0000 "LV_SYMBOL_BELL" Hello world Espressif and LVGL "LV_SYMBOL_BELL"#\n#FF9400 "LV_SYMBOL_WARNING" For simplier initialization, use BSP "LV_SYMBOL_WARNING" #");
-    #else
-    lv_label_set_text(label, LV_SYMBOL_BELL" Hello world Espressif and LVGL "LV_SYMBOL_BELL"\n "LV_SYMBOL_WARNING" For simplier initialization, use BSP "LV_SYMBOL_WARNING);
-    #endif
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, -30);
-
-    /*button code would go here*/
-    
-
-    /*task unlock*/
-    lvgl_port_unlock();
-}
-
-
-//scaffolding for later
-
 void display_task(void *arg)
-{
-    while(1){
-        printf("hi");
-        vTaskDelay(pdMS_TO_TICKS(1000));
+{   
+    lvgl_port_lock(0);
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_t *dot = NULL;
+    const int16_t dot_size = 10;
+    const int16_t y = (LCD_V_RES - dot_size) / 2;
+    const int16_t min_x = 0;
+    const int16_t max_x = LCD_H_RES - dot_size;
+    int16_t x = min_x;
+    int16_t dir = 2;
+
+    dot = lv_obj_create(scr);
+    lv_obj_remove_style_all(dot);
+    lv_obj_set_size(dot, dot_size, dot_size);
+    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(dot, lv_color_hex(0x00FF80), 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    lv_obj_set_pos(dot, x, y);
+    ESP_LOGI(TAG, "display task running");
+    lvgl_port_unlock();
+
+    while (1) {
+        lvgl_port_lock(0);
+        x += dir;
+        if (x >= max_x) {
+            x = max_x;
+            dir = -dir;
+        } else if (x <= min_x) {
+            x = min_x;
+            dir = -dir;
+        }
+        lv_obj_set_x(dot, x);
+        lvgl_port_unlock();
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 }
 
-void app_start_display_task(void)
+void display_make_tasks(void)
 {
-    xTaskCreate(display_task, "display_task", 4096, NULL, 8, NULL);
+    ESP_ERROR_CHECK(app_lcd_init());
+    ESP_ERROR_CHECK(app_lvgl_init());
+    xTaskCreate(display_task, "display_task", 4096, NULL, 5, NULL);
 }
-
-// for testing
-#define TEST_MEMORY_LEAK_THRESHOLD (50)
-
-void check_leak(size_t start_free, size_t end_free, const char *type)
-{
-    ssize_t delta = start_free - end_free;
-    printf("MALLOC_CAP_%s: Before %u bytes free, After %u bytes free (delta %d)\n", type, start_free, end_free, delta);
-    TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE (delta, TEST_MEMORY_LEAK_THRESHOLD, "memory leak");
-}
-
-//helper function to swap color bytes, keep for now.
-uint16_t lcd_swap_color(uint16_t color)
-{
-    return (uint16_t)((color << 8) | (color >> 8));
-}
-
-//unity test case to be called from main.

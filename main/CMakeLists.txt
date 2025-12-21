@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS
         "main.c"
-        "app_runtime.c"
+        "app_audio.c"
         "app_display.c"
     INCLUDE_DIRS
         "."
@@ -16,5 +16,6 @@ idf_component_register(
         esp_lcd
         esp_lcd_gc9a01
         lvgl
-    REQUIRES unity
+        esp_ringbuf
+    REQUIRES esp_driver_i2s
 )

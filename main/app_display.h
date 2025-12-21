@@ -16,9 +16,8 @@ esp_err_t app_lvgl_init(void);
 esp_err_t app_lvgl_deinit(void);
 void app_main_display(void);
 void display_task(void *arg);
-void app_start_display_task(void);
+void display_make_tasks(void);
 void check_leak(size_t start_free, size_t end_free, const char *type);
-uint16_t lcd_swap_color(uint16_t color);
 
 #ifdef __cplusplus
 }

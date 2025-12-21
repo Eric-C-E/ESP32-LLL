@@ -27,6 +27,15 @@
 static const char *TAG = "example";
 static const char *payload = "Message from ESP32 ";
 
+/* for ringbuffer read from audio task*/
+size_t item_size;
+uint8_t *item = (uint8_t *)xRingbufferReceive(audio_rb, &item_size, portMAX_DELAY);
+if (item) {
+    // send item_size bytes over TCP (handle partial sends!)
+    vRingbufferReturnItem(audio_rb, item);
+}
+
+
 
 void tcp_client(void)
 {
