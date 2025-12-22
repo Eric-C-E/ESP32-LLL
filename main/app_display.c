@@ -1,37 +1,43 @@
+/* 2025 Eric Liu
+This program defines a freeRTOS task to drive two SPI displays. The displays are multiplexed with their CS pins. 
+There is one SPI channel defined on SPI2, which drives LCD1 and LCD2 with their own io handles, panel handles, and LVGL objects.
+In use is esp_lcd component for GC9A01 (primary disp) and xxxxx (secondary disp)
+
+
+Inputs: Queue
+Outputs: None
+*/
+
+
+
+
 #include "app_display.h"
 #include "app_tasks.h"
 #include <stdlib.h>
 
 #include "esp_err.h"
 #include "esp_check.h"
-#include "esp_heap_caps.h"
-
-#include "esp_lcd_gc9a01.h"
-
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
-
+#include "esp_lcd_gc9a01.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
 #include "esp_lvgl_port.h"
 
-//LCD SPI host and size
-#define LCD_HOST SPI2_HOST
-#define LCD_H_RES 240
-#define LCD_V_RES 240
-#define LCD_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
-#define LCD_DRAW_BUF_HEIGHT 40
-#define LCD_DRAW_BUF_DOUBLE 1
-#define LCD_CMD_BITS 8
-#define LCD_PARAM_BITS 8
-#define LCD_BITS_PER_PIXEL 16
+/* LCD SPI host and CLK */
 
-//LCD PIN definitions
+#define LCD_HOST SPI2_HOST
+#define LCD_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
+
+
+/* LCD PIN definitions */
+
 #define PIN_NUM_MOSI 11
 #define PIN_NUM_SCLK 12
 #define PIN_NUM_CS 10
@@ -42,11 +48,37 @@
 static const char *TAG = "display_task";
 
 #define LCD_INVERT_COLORS false
-//lcd panel Io
+
+/* LCD one and two specific definitions */
+#define LCD_H_RES 240
+#define LCD_V_RES 240
+#define LCD_DRAW_BUF_HEIGHT 40
+#define LCD_DRAW_BUF_DOUBLE 1
+#define LCD_CMD_BITS 8
+#define LCD_PARAM_BITS 8
+#define LCD_BITS_PER_PIXEL 16
+/*--------------------------------------*/
+#define LCD_H_RES_2 240
+#define LCD_V_RES_2 240
+#define LCD_DRAW_BUF_HEIGHT_2 40
+#define LCD_DRAW_BUF_DOUBLE_2 1
+#define LCD_CMD_BITS_2 8
+#define LCD_PARAM_BITS_2 8
+#define LCD_BITS_PER_PIXEL_2 16
+/*--------------------------------------*/
+
+/* lcd panel Ios */
+
 static esp_lcd_panel_io_handle_t io_handle = NULL;
 static esp_lcd_panel_handle_t panel_handle = NULL;
-//lvgl display handle
+
+static esp_lcd_panel_io_handle_t io_handle_2 = NULL;
+static esp_lcd_panel_handle_t panel_handle_2 = NULL;
+
+/* lvgl display handles */
+
 static lv_display_t *lvgl_disp = NULL;
+static lv_display_t *lvgl_disp_2 = NULL;
 
 esp_err_t app_lcd_init(void)
 {
