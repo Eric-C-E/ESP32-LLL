@@ -114,6 +114,10 @@ static void i2s_read_task(void *args)
     while(1){
         if (i2s_channel_read(rx_handle, int_buf, INTERMEDIARY_BUF_SIZE, &int_bytes, 500) == ESP_OK) {
             ESP_LOGI(TAG, "audio read task read %zu bytes", int_bytes);
+            /* ESP_LOGI(TAG, "[0] %x [1] %x [2] %x [3] %x\n[4] %x [5] %x [6] %x [7] %x\n\n",
+                   int_buf[0], int_buf[1], int_buf[2], int_buf[3], int_buf[4], int_buf[5], int_buf[6], int_buf[7]);
+            */
+
             BaseType_t ok = xRingbufferSend(audio_rb, int_buf, int_bytes, pdMS_TO_TICKS(5));
             if (ok != pdTRUE) {
                 ESP_LOGI(TAG, "failed ringbuffer push"); //remove logging for live
@@ -122,7 +126,8 @@ static void i2s_read_task(void *args)
         else {
             ESP_LOGI(TAG, "audio read task FAILED");
         }
-        // here put vTaskDelay for testing
+        /*here put vTaskDelay for testing*/ 
+        //vTaskDelay(500);
     }
     free(int_buf);
     vTaskDelete(NULL);
