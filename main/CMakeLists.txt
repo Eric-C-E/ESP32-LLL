@@ -3,6 +3,7 @@ idf_component_register(
         "main.c"
         "app_audio.c"
         "app_display.c"
+        "app_gpio.c"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES

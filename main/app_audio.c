@@ -127,7 +127,7 @@ static void i2s_read_task(void *args)
             ESP_LOGI(TAG, "audio read task FAILED");
         }
         /*here put vTaskDelay for testing*/ 
-        //vTaskDelay(500);
+        vTaskDelay(500);
     }
     free(int_buf);
     vTaskDelete(NULL);

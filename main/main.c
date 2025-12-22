@@ -4,6 +4,7 @@
 
 #include "app_display.h"
 #include "app_audio.h"
+#include "app_gpio.h"
 
 static const char *TAG = "app_main";
 
@@ -18,8 +19,9 @@ void app_main(void)
         ESP_ERROR_CHECK(err);
     }
 
-    ESP_LOGD(TAG, "trying to init audio, display tasks");
+    ESP_LOGD(TAG, "trying to init audio, display, gpio tasks");
 
     audio_make_tasks();
     display_make_tasks();
+    gpio_make_tasks();
 }
