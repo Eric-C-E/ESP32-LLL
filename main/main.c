@@ -1,10 +1,14 @@
 #include "nvs_flash.h"
-
+#include "esp_netif.h"
+#include "protocol_examples_common.h"
 #include "esp_log.h"
+#include "esp_event.h"
 
 #include "app_display.h"
 #include "app_audio.h"
 #include "app_gpio.h"
+#include "app_tcp.h"
+#include "app_wifi.h"
 
 static const char *TAG = "app_main";
 
@@ -19,9 +23,14 @@ void app_main(void)
         ESP_ERROR_CHECK(err);
     }
 
-    ESP_LOGD(TAG, "trying to init audio, display, gpio tasks");
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    ESP_LOGD(TAG, "trying to init audio, display, gpio, TCP TX tasks");
+
+    wifi_make_tasks();
     audio_make_tasks();
     display_make_tasks();
     gpio_make_tasks();
+    tcp_make_tasks();
 }

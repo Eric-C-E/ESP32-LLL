@@ -24,8 +24,6 @@ OUTPUTS: ringbuffer audio_rb interfaces with app_tcp_tx
 #include "esp_err.h"
 #include "sdkconfig.h"
 #include "esp_log.h"
-
-
 #include "freertos/ringbuf.h"
 
 /* pins */
@@ -103,7 +101,7 @@ static void i2s_read_task(void *args)
     uint8_t *int_buf = (uint8_t *)calloc(1, INTERMEDIARY_BUF_SIZE);
     assert(int_buf);
     size_t int_bytes = 0;
-    ESP_LOGD(TAG, "intermediary buffer initialized");
+    ESP_LOGI(TAG, "intermediary buffer initialized");
 
     /* Enable RX channel */
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
@@ -113,18 +111,18 @@ static void i2s_read_task(void *args)
     /* around 30 ms expected, timeout 500*/
     while(1){
         if (i2s_channel_read(rx_handle, int_buf, INTERMEDIARY_BUF_SIZE, &int_bytes, 500) == ESP_OK) {
-            ESP_LOGI(TAG, "audio read task read %zu bytes", int_bytes);
+            ESP_LOGD(TAG, "audio read task read %zu bytes", int_bytes);
             /* ESP_LOGI(TAG, "[0] %x [1] %x [2] %x [3] %x\n[4] %x [5] %x [6] %x [7] %x\n\n",
                    int_buf[0], int_buf[1], int_buf[2], int_buf[3], int_buf[4], int_buf[5], int_buf[6], int_buf[7]);
             */
 
             BaseType_t ok = xRingbufferSend(audio_rb, int_buf, int_bytes, pdMS_TO_TICKS(5));
             if (ok != pdTRUE) {
-                ESP_LOGI(TAG, "failed ringbuffer push"); //remove logging for live
+                ESP_LOGD(TAG, "failed ringbuffer push"); //remove logging for live
             }
         }
         else {
-            ESP_LOGI(TAG, "audio read task FAILED");
+            ESP_LOGD(TAG, "audio read task FAILED");
         }
         /*here put vTaskDelay for testing*/ 
         vTaskDelay(500);

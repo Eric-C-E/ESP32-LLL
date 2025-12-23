@@ -4,6 +4,9 @@ idf_component_register(
         "app_audio.c"
         "app_display.c"
         "app_gpio.c"
+        "app_wifi.c"
+        "app_tcp.c"
+       
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
@@ -14,9 +17,11 @@ idf_component_register(
         heap
         log
         nvs_flash
+        esp_wifi
         esp_lcd
         esp_lcd_gc9a01
         lvgl
         esp_ringbuf
+        esp_netif
     REQUIRES esp_driver_i2s
 )
