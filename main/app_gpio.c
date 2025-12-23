@@ -154,5 +154,5 @@ static void app_gpio_task(void *args)
 void gpio_make_tasks(void)
 {
     app_gpio_init_inputs();
-    xTaskCreate(app_gpio_task, "gpio_task", 2048, NULL, 9, NULL);
+    xTaskCreatePinnedToCore(app_gpio_task, "gpio_task", 2048, NULL, 9, NULL, 1);
 }

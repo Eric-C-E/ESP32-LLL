@@ -132,5 +132,5 @@ void audio_make_tasks(void)
 {
     init_audio_rb();
     i2s_init_std();
-    xTaskCreate(i2s_read_task, "i2s_read_task", 4096, NULL, 8, NULL);
+    xTaskCreatePinnedToCore(i2s_read_task, "i2s_read_task", 4096, NULL, 8, NULL, 1);
 }

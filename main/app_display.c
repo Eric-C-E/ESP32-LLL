@@ -233,5 +233,5 @@ void display_make_tasks(void)
 {
     ESP_ERROR_CHECK(app_lcd_init());
     ESP_ERROR_CHECK(app_lvgl_init());
-    xTaskCreate(display_task, "display_task", 4096, NULL, 5, NULL);
+    xTaskCreatePinnedToCore(display_task, "display_task", 4096, NULL, 6, NULL, 1);
 }

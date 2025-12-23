@@ -51,6 +51,7 @@ Outputs: queue text_queue
 #define DELAYTIME 100
 
 static const char *TAG = "TCP tx task";
+static const char *TAG2 = "TCP rx task";
 static int sock = 0;
 static SemaphoreHandle_t sock_ready;
 
@@ -259,33 +260,33 @@ void tcp_rx_task(void *args)
 {
     /* reuses the same socket created with the tx task */
     uint8_t hdr_buf[sizeof(msg_hdr_t)];
-    ESP_LOGI(TAG, "TCP RX task started");
+    ESP_LOGI(TAG2, "TCP RX task started");
     uint32_t rx_log_ctr = 0;
     while (1) {
         xSemaphoreTake(sock_ready, portMAX_DELAY);
-        ESP_LOGI(TAG, "TCP RX task connected");
+        ESP_LOGI(TAG2, "TCP RX task connected");
 
         while (1)
         {
             if(!recv_all(sock, hdr_buf, sizeof(msg_hdr_t))) {
-                ESP_LOGE(TAG, "Failed to receive message header");
+                ESP_LOGE(TAG2, "Failed to receive message header");
                 break;
             }
             msg_hdr_t *hdr = (msg_hdr_t *)hdr_buf;
             uint32_t payload_len = ntohl(hdr->payload_len);
             if ((rx_log_ctr++ % 50) == 0) {
-                ESP_LOGI(TAG, "TCP rx hdr: msg_type=%d flags=%d payload_len=%d",
+                ESP_LOGI(TAG2, "TCP rx hdr: msg_type=%d flags=%d payload_len=%d",
                          hdr->msg_type, hdr->flags, (int)payload_len);
             }
             
             if (payload_len > TEXT_BUF_SIZE) {
-                ESP_LOGE(TAG, "Payload length %d exceeds buffer size %d", payload_len, TEXT_BUF_SIZE);
+                ESP_LOGE(TAG2, "Payload length %d exceeds buffer size %d", payload_len, TEXT_BUF_SIZE);
                 uint8_t discard_buf[32];
                 size_t bytes_to_discard = payload_len;
                 while (bytes_to_discard > 0) {
                     size_t chunk_size = (bytes_to_discard > sizeof(discard_buf)) ? sizeof(discard_buf) : bytes_to_discard;
                     if (!recv_all(sock, discard_buf, chunk_size)) {
-                        ESP_LOGE(TAG, "Failed to discard excess payload");
+                        ESP_LOGE(TAG2, "Failed to discard excess payload");
                         break;
                     }
 
@@ -298,25 +299,25 @@ void tcp_rx_task(void *args)
             };
 
             if (!recv_all(sock, text_msg.payload, payload_len)) {
-                ESP_LOGE(TAG, "Failed to receive message payload");
+                ESP_LOGE(TAG2, "Failed to receive message payload");
                 break;
             }
             if ((rx_log_ctr % 50) == 0) {
-                ESP_LOGI(TAG, "TCP rx payload ok: %d bytes", (int)payload_len);
+                ESP_LOGI(TAG2, "TCP rx payload ok: %d bytes", (int)payload_len);
             }
             if (hdr->flags & 0x04) {
                 if (xQueueSend(disp1_q, &text_msg, pdMS_TO_TICKS(DELAYTIME)) != pdTRUE) {
-                    ESP_LOGW(TAG, "Display 1 queue full, message dropped");
+                    ESP_LOGW(TAG2, "Display 1 queue full, message dropped");
                 }
             } else if (hdr->flags & 0x08) {
                 if (xQueueSend(disp2_q, &text_msg, pdMS_TO_TICKS(DELAYTIME)) != pdTRUE) {
-                    ESP_LOGW(TAG, "Display 2 queue full, message dropped");
+                    ESP_LOGW(TAG2, "Display 2 queue full, message dropped");
                 }
             } else {
-                ESP_LOGW(TAG, "Unknown display flag: %d", hdr->flags);
+                ESP_LOGW(TAG2, "Unknown display flag: %d", hdr->flags);
             }
         }
-        ESP_LOGI(TAG, "TCP RX task waiting for reconnect");
+        ESP_LOGI(TAG2, "TCP RX task waiting for reconnect");
     }
 }
 
@@ -325,6 +326,6 @@ void tcp_make_tasks(void)
     tcp_init_queues();
     sock_ready = xSemaphoreCreateBinary();
     assert(sock_ready);
-    xTaskCreate(tcp_tx_task, "tcp_tx_task", 4096, NULL, 6, NULL);
-    xTaskCreate(tcp_rx_task, "tcp_rx_task", 4096, NULL, 6, NULL);
+    xTaskCreatePinnedToCore(tcp_tx_task, "tcp_tx_task", 4096, NULL, 6, NULL, 0);
+    xTaskCreatePinnedToCore(tcp_rx_task, "tcp_rx_task", 4096, NULL, 6, NULL, 0);
 }
