@@ -166,6 +166,7 @@ void tcp_tx_task(void *args)
         ESP_LOGI(TAG, "Succesfully connected");
         xSemaphoreGive(sock_ready);
 
+        uint32_t tx_log_ctr = 0;
         while (1)
         {
             /* rely on current FSM state to decide    */
@@ -192,6 +193,10 @@ void tcp_tx_task(void *args)
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 1; //LANG1
                     hdr.payload_len = htonl(rb_bytes);
+                    if ((tx_log_ctr++ % 100) == 0) {
+                        ESP_LOGI(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
+                                 hdr.msg_type, hdr.flags, (int)rb_bytes);
+                    }
                     /* copy header */
                     memcpy(int_buf, (uint8_t *)&hdr, sizeof(msg_hdr_t));
                     /* copy audio data */
@@ -217,6 +222,10 @@ void tcp_tx_task(void *args)
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 2; //LANG2
                     hdr.payload_len = htonl(rb_bytes);
+                    if ((tx_log_ctr++ % 100) == 0) {
+                        ESP_LOGI(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
+                                 hdr.msg_type, hdr.flags, (int)rb_bytes);
+                    }
                     memcpy(int_buf, (uint8_t *)&hdr, sizeof(msg_hdr_t));
                     /* copy audio data */
                     memcpy(int_buf + sizeof(msg_hdr_t), audio, rb_bytes);
@@ -251,6 +260,7 @@ void tcp_rx_task(void *args)
     /* reuses the same socket created with the tx task */
     uint8_t hdr_buf[sizeof(msg_hdr_t)];
     ESP_LOGI(TAG, "TCP RX task started");
+    uint32_t rx_log_ctr = 0;
     while (1) {
         xSemaphoreTake(sock_ready, portMAX_DELAY);
         ESP_LOGI(TAG, "TCP RX task connected");
@@ -262,10 +272,12 @@ void tcp_rx_task(void *args)
                 break;
             }
             msg_hdr_t *hdr = (msg_hdr_t *)hdr_buf;
-        ESP_LOGD(TAG, "Received header: msg_type=%d, flags=%d, payload_len=%d",
-                 hdr->msg_type, hdr->flags, (int)ntohl(hdr->payload_len));
-            
             uint32_t payload_len = ntohl(hdr->payload_len);
+            if ((rx_log_ctr++ % 50) == 0) {
+                ESP_LOGI(TAG, "TCP rx hdr: msg_type=%d flags=%d payload_len=%d",
+                         hdr->msg_type, hdr->flags, (int)payload_len);
+            }
+            
             if (payload_len > TEXT_BUF_SIZE) {
                 ESP_LOGE(TAG, "Payload length %d exceeds buffer size %d", payload_len, TEXT_BUF_SIZE);
                 uint8_t discard_buf[32];
@@ -288,6 +300,9 @@ void tcp_rx_task(void *args)
             if (!recv_all(sock, text_msg.payload, payload_len)) {
                 ESP_LOGE(TAG, "Failed to receive message payload");
                 break;
+            }
+            if ((rx_log_ctr % 50) == 0) {
+                ESP_LOGI(TAG, "TCP rx payload ok: %d bytes", (int)payload_len);
             }
             if (hdr->flags & 0x04) {
                 if (xQueueSend(disp1_q, &text_msg, pdMS_TO_TICKS(DELAYTIME)) != pdTRUE) {
