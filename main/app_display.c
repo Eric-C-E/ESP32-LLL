@@ -167,9 +167,9 @@ esp_err_t app_lvgl_init(void)
         .monochrome = false,
         //rotations
         .rotation = {
-            .swap_xy = false,
+            .swap_xy = true,
             .mirror_x = false,
-            .mirror_y = false,
+            .mirror_y = true,
         },
         .flags = {
             .buff_dma = true,
@@ -196,12 +196,41 @@ void display_task(void *arg)
     lvgl_port_lock(0);
     lv_obj_t *scr = lv_scr_act();
     lv_obj_t *dot = NULL;
+    lv_obj_t *text_rect = NULL;
+    lv_obj_t *indicator_rect = NULL;
     const int16_t dot_size = 10;
     const int16_t y = (LCD_V_RES - dot_size) / 2;
     const int16_t min_x = 0;
     const int16_t max_x = LCD_H_RES - dot_size;
     int16_t x = min_x;
     int16_t dir = 2;
+
+    const int16_t text_x = 30;
+    const int16_t text_y = 40;
+    const int16_t text_w = 180;
+    const int16_t text_h = 160;
+    const int16_t indicator_w = 120;
+    const int16_t indicator_h = 30;
+    const int16_t indicator_x = text_x + (text_w - indicator_w) / 2;
+    const int16_t indicator_y = text_y - indicator_h;
+
+    text_rect = lv_obj_create(scr);
+    lv_obj_remove_style_all(text_rect);
+    lv_obj_set_size(text_rect, text_w, text_h);
+    lv_obj_set_pos(text_rect, text_x, text_y);
+    lv_obj_set_style_border_width(text_rect, 2, 0);
+    lv_obj_set_style_border_color(text_rect, lv_color_hex(0x00C8FF), 0);
+    lv_obj_set_style_border_opa(text_rect, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(text_rect, LV_OPA_TRANSP, 0);
+
+    indicator_rect = lv_obj_create(scr);
+    lv_obj_remove_style_all(indicator_rect);
+    lv_obj_set_size(indicator_rect, indicator_w, indicator_h);
+    lv_obj_set_pos(indicator_rect, indicator_x, indicator_y);
+    lv_obj_set_style_border_width(indicator_rect, 2, 0);
+    lv_obj_set_style_border_color(indicator_rect, lv_color_hex(0xFFD000), 0);
+    lv_obj_set_style_border_opa(indicator_rect, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(indicator_rect, LV_OPA_TRANSP, 0);
 
     dot = lv_obj_create(scr);
     lv_obj_remove_style_all(dot);
