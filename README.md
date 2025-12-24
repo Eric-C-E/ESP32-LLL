@@ -19,9 +19,23 @@ Firmware for the Live Language Lens AR headset. The ESP32-S3 captures I2S audio 
 | *DC*    | 8        | 8    | DC data command mux             |
 
 - Wiring (display 2: Towards Target Individual)
+Screen 2 not integrated yet
+Screens share MOSI, CLK, DC, replace CS with pin [placeholder_update_later] 
 
-Same as above, replace CS with pin [placeholder_update_later]
+- Audio Input: dual audio input. Realistically these MEMS mics can be put anywhere you want, but I had one facing forward to capture subject in the gain pattern, as well as one facing towards the wearer, multiplexed not in hardware but in software - the parsing software will read the TCP headers containing language information and extract L or R channel into a mono stream for Whisper.
 
+For your information, the microphones used are IMNP441s. They are drop-in for this project. 24 bit precision, 18 useable, MSB first, Phillips (1 CLK cycle delay from WS edge).
+
+| Pin     | Physical | GPIO | Function                        |
+| ------- | -------- | ---- | ------------------------------- |
+| SCK     |          | 04   | CLOCK                           |
+| WS      |          | 05   | SELECT                          |
+| SD      |          | 06   | Serial Data                     |
+| LR      |          | DIFF | Set L/R channel output          |
+
+Microphones share SCK, WS, SD. 
+
+Pull one L/R pin high and one low for stereo. The microphones will multiplex by taking up half the frame each in L0 R0 L1 R1 etc format.
 
 ## Build and Flash
 ```bash
@@ -31,12 +45,12 @@ idf.py -p PORT flash monitor
 ```
 
 ## Project Layout
-- `main/`: application code (display task, app runtime)
-- `managed_components/`: external components (GC9A01 driver, etc.)
-- `sdkconfig*`: project configuration
+- `main/`: application code (task and headers)
+- `managed_components/`: external components (GC9A01 driver, LVGL)
+- `sdkconfig*`: project configuration. Run menuconfig to adjust access point to your edge inference/other device. Only works over ipv4.
 
 ## Display Notes
-This panel expects RGB565 in MSB-first byte order. The standard bmp flush function of the esp_lcd lib does NOT match this requirement; the current display path swaps bytes per pixel before `esp_lcd_panel_draw_bitmap` and uses DMA-safe buffering (waits for transfer completion before reusing the buffer).
+GC9A01 based panel expects RGB565 in MSB-first byte order. The standard bmp flush function of the esp_lcd lib does NOT match this requirement; the current display path swaps bytes per pixel before `esp_lcd_panel_draw_bitmap` and uses DMA-safe buffering (waits for transfer completion before reusing the buffer).
 
 If you change panels or bit depth, revisit:
 - byte order / swap
