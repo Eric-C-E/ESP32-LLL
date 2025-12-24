@@ -13,7 +13,11 @@ Outputs: None
 
 #include "app_display.h"
 #include "app_tasks.h"
+#include "app_tcp.h"
+#include "app_wifi.h"
+#include "app_gpio.h"
 #include <stdlib.h>
+#include <string.h>
 
 #include "esp_err.h"
 #include "esp_check.h"
@@ -22,6 +26,7 @@ Outputs: None
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "freertos/queue.h"
 
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -47,7 +52,7 @@ Outputs: None
 
 static const char *TAG = "display_task";
 
-#define LCD_INVERT_COLORS false
+#define LCD_INVERT_COLORS true
 
 /* LCD one and two specific definitions */
 #define LCD_H_RES 240
@@ -66,6 +71,8 @@ static const char *TAG = "display_task";
 #define LCD_PARAM_BITS_2 8
 #define LCD_BITS_PER_PIXEL_2 16
 /*--------------------------------------*/
+#define DISPLAY_MAX_LINES 16
+#define DISPLAY_LINE_MAX_AGE_MS 10000
 
 /* lcd panel Ios */
 
@@ -79,6 +86,133 @@ static esp_lcd_panel_handle_t panel_handle_2 = NULL;
 
 static lv_display_t *lvgl_disp = NULL;
 static lv_display_t *lvgl_disp_2 = NULL;
+
+typedef struct {
+    TickType_t ts;
+    char text[TEXT_BUF_SIZE + 1];
+} log_line_t;
+
+/* terminal line style rendering -> pad all space on top so new lines appear bottom */
+/* safely discards excess transcript to avoid memory error                          */
+static void rebuild_log_textarea(lv_obj_t *log_area, const log_line_t *lines, int line_count,
+                                 int max_lines)
+{
+    static char log_text[1024];
+    size_t pos = 0;
+    size_t remaining = sizeof(log_text) - 1;
+
+    int padding_lines = max_lines - line_count;
+    for (int i = 0; i < padding_lines && remaining > 0; i++) {
+        if (remaining == 0) {
+            break;
+        }
+        log_text[pos++] = '\n';
+        log_text[pos] = '\0';
+        remaining--;
+    }
+
+    for (int i = 0; i < line_count && remaining > 0; i++) {
+        size_t len = strnlen(lines[i].text, TEXT_BUF_SIZE);
+        if (len > remaining) {
+            len = remaining;
+        }
+        memcpy(log_text + pos, lines[i].text, len);
+        pos += len;
+        log_text[pos] = '\0';
+        remaining -= len;
+        if (i < line_count - 1 && remaining > 0) {
+            log_text[pos++] = '\n';
+            log_text[pos] = '\0';
+            remaining--;
+        }
+    }
+
+    lv_textarea_set_text(log_area, log_text);
+    lv_textarea_set_cursor_pos(log_area, LV_TEXTAREA_CURSOR_LAST);
+}
+
+/* removes the oldest line for when the lines reach the top */
+static void drop_oldest_line(log_line_t *lines, int *line_count)
+{
+    if (*line_count <= 0) {
+        return;
+    }
+    for (int i = 1; i < *line_count; i++) {
+        lines[i - 1] = lines[i];
+    }
+    (*line_count)--;
+}
+
+/* removes expired lines from the log; lifetime is defined by DISPLAY_LINE_MAX_AGE_MS */
+static void prune_expired_lines(log_line_t *lines, int *line_count, TickType_t now)
+{
+    while (*line_count > 0 &&
+           (now - lines[0].ts) > pdMS_TO_TICKS(DISPLAY_LINE_MAX_AGE_MS)) {
+        drop_oldest_line(lines, line_count);
+    }
+}
+
+/* splits incoming log transcript to what fits, invokes functions to trim if needed     */
+static void add_wrapped_lines(log_line_t *lines, int *line_count, int max_lines,
+                              const char *text, TickType_t ts, const lv_font_t *font,
+                              int32_t max_width, int32_t letter_space)
+{
+    size_t len = strnlen(text, TEXT_BUF_SIZE);
+    size_t line_start = 0;
+    int32_t line_width = 0;
+    size_t line_len = 0;
+
+    if (max_width < 1) {
+        max_width = 1;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        uint32_t letter = (uint8_t)text[i];
+        uint32_t next = (i + 1 < len) ? (uint8_t)text[i + 1] : 0;
+        int32_t glyph_width = lv_font_get_glyph_width(font, letter, next);
+        int32_t next_width = line_width + glyph_width;
+
+        if (line_len > 0 && next_width > max_width) {
+            while (line_start < i && text[line_start] == ' ') {
+                line_start++;
+            }
+            size_t seg_len = i - line_start;
+            if (seg_len > 0) {
+                while (*line_count >= max_lines) {
+                    drop_oldest_line(lines, line_count);
+                }
+                lines[*line_count].ts = ts;
+                size_t copy_len = (seg_len > TEXT_BUF_SIZE) ? TEXT_BUF_SIZE : seg_len;
+                memcpy(lines[*line_count].text, text + line_start, copy_len);
+                lines[*line_count].text[copy_len] = '\0';
+                (*line_count)++;
+            }
+            line_start = i;
+            line_width = 0;
+            line_len = 0;
+        }
+
+        line_width += glyph_width + letter_space;
+        line_len++;
+    }
+
+    if (line_len > 0) {
+        while (line_start < len && text[line_start] == ' ') {
+            line_start++;
+        }
+        if (line_start < len) {
+            size_t seg_len = len - line_start;
+            while (*line_count >= max_lines) {
+                drop_oldest_line(lines, line_count);
+            }
+            lines[*line_count].ts = ts;
+            size_t copy_len = (seg_len > TEXT_BUF_SIZE) ? TEXT_BUF_SIZE : seg_len;
+            memcpy(lines[*line_count].text, text + line_start, copy_len);
+            lines[*line_count].text[copy_len] = '\0';
+            (*line_count)++;
+        }
+    }
+}
 
 esp_err_t app_lcd_init(void)
 {
@@ -194,17 +328,13 @@ esp_err_t app_lvgl_deinit(void)
 void display_task(void *arg)
 {   
     lvgl_port_lock(0);
+    /* screen one of two */
     lv_obj_t *scr = lv_scr_act();
-    lv_obj_t *dot = NULL;
-    lv_obj_t *text_rect = NULL;
-    lv_obj_t *indicator_rect = NULL;
-    const int16_t dot_size = 10;
-    const int16_t y = (LCD_V_RES - dot_size) / 2;
-    const int16_t min_x = 0;
-    const int16_t max_x = LCD_H_RES - dot_size;
-    int16_t x = min_x;
-    int16_t dir = 2;
-
+    lv_obj_t *log_area = NULL;
+    lv_obj_t *indicator_area = NULL;
+    lv_obj_t *rdy_label = NULL;
+    lv_obj_t *rec_dot = NULL;
+    lv_obj_t *rssi_label = NULL;
     const int16_t text_x = 30;
     const int16_t text_y = 40;
     const int16_t text_w = 180;
@@ -214,47 +344,148 @@ void display_task(void *arg)
     const int16_t indicator_x = text_x + (text_w - indicator_w) / 2;
     const int16_t indicator_y = text_y - indicator_h;
 
-    text_rect = lv_obj_create(scr);
-    lv_obj_remove_style_all(text_rect);
-    lv_obj_set_size(text_rect, text_w, text_h);
-    lv_obj_set_pos(text_rect, text_x, text_y);
-    lv_obj_set_style_border_width(text_rect, 2, 0);
-    lv_obj_set_style_border_color(text_rect, lv_color_hex(0x00C8FF), 0);
-    lv_obj_set_style_border_opa(text_rect, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_opa(text_rect, LV_OPA_TRANSP, 0);
+    /* screen two of two WIP */
 
-    indicator_rect = lv_obj_create(scr);
-    lv_obj_remove_style_all(indicator_rect);
-    lv_obj_set_size(indicator_rect, indicator_w, indicator_h);
-    lv_obj_set_pos(indicator_rect, indicator_x, indicator_y);
-    lv_obj_set_style_border_width(indicator_rect, 2, 0);
-    lv_obj_set_style_border_color(indicator_rect, lv_color_hex(0xFFD000), 0);
-    lv_obj_set_style_border_opa(indicator_rect, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_opa(indicator_rect, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    dot = lv_obj_create(scr);
-    lv_obj_remove_style_all(dot);
-    lv_obj_set_size(dot, dot_size, dot_size);
-    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(dot, lv_color_hex(0x00FF80), 0);
-    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-    lv_obj_set_pos(dot, x, y);
+    /* defining objects for screen 1 */
+    indicator_area = lv_obj_create(scr);
+    lv_obj_remove_style_all(indicator_area);
+    lv_obj_set_size(indicator_area, indicator_w, indicator_h);
+    lv_obj_set_pos(indicator_area, indicator_x, indicator_y);
+    lv_obj_set_style_bg_opa(indicator_area, LV_OPA_TRANSP, 0);
+
+    rdy_label = lv_label_create(indicator_area);
+    lv_label_set_text(rdy_label, "RDY");
+    lv_obj_set_style_text_color(rdy_label, lv_color_hex(0x2D6BFF), 0);
+    lv_obj_align(rdy_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+    rec_dot = lv_obj_create(indicator_area);
+    lv_obj_remove_style_all(rec_dot);
+    lv_obj_set_size(rec_dot, 10, 10);
+    lv_obj_set_style_radius(rec_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(rec_dot, lv_color_hex(0xFF2A2A), 0);
+    lv_obj_set_style_bg_opa(rec_dot, LV_OPA_COVER, 0);
+    lv_obj_align(rec_dot, LV_ALIGN_LEFT_MID, 2, 0);
+
+    rssi_label = lv_label_create(indicator_area);
+    lv_label_set_text(rssi_label, "RSSI --");
+    lv_obj_set_style_text_color(rssi_label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(rssi_label, LV_ALIGN_RIGHT_MID, 0, 0);
+
+    log_area = lv_textarea_create(scr);
+    lv_obj_set_size(log_area, text_w, text_h);
+    lv_obj_set_pos(log_area, text_x, text_y);
+    lv_textarea_set_max_length(log_area, 1024);
+    lv_textarea_set_cursor_click_pos(log_area, false);
+    lv_textarea_set_password_mode(log_area, false);
+    lv_obj_add_state(log_area, LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(log_area, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(log_area, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(log_area, 2, 0);
+    lv_obj_set_scrollbar_mode(log_area, LV_SCROLLBAR_MODE_OFF);
+
+    const lv_font_t *log_font = lv_obj_get_style_text_font(log_area, LV_PART_MAIN);
+    const int32_t line_space = lv_obj_get_style_text_line_space(log_area, LV_PART_MAIN);
+    const int32_t letter_space = lv_obj_get_style_text_letter_space(log_area, LV_PART_MAIN);
+    const int32_t pad_left = lv_obj_get_style_pad_left(log_area, LV_PART_MAIN);
+    const int32_t pad_right = lv_obj_get_style_pad_right(log_area, LV_PART_MAIN);
+    const int32_t pad_top = lv_obj_get_style_pad_top(log_area, LV_PART_MAIN);
+    const int32_t pad_bottom = lv_obj_get_style_pad_bottom(log_area, LV_PART_MAIN);
+    const uint16_t line_height = lv_font_get_line_height(log_font) + line_space;
+    int32_t content_height = text_h - pad_top - pad_bottom;
+    int32_t content_width = text_w - pad_left - pad_right;
+    int max_lines = (line_height > 0) ? (content_height / line_height) : 1;
+    if (max_lines < 1) {
+        max_lines = 1;
+    }
+    if (max_lines > DISPLAY_MAX_LINES) {
+        max_lines = DISPLAY_MAX_LINES;
+    }
+    if (content_width < 1) {
+        content_width = 1;
+    }
+
     ESP_LOGI(TAG, "display task running");
     lvgl_port_unlock();
 
+    static log_line_t lines[DISPLAY_MAX_LINES];
+    static int line_count = 0;
+    QueueHandle_t disp1_q = tcp_rx_get_disp1_q();
+    TickType_t last_indicator_update = 0;
+    TickType_t last_prune = 0;
+
     while (1) {
-        lvgl_port_lock(0);
-        x += dir;
-        if (x >= max_x) {
-            x = max_x;
-            dir = -dir;
-        } else if (x <= min_x) {
-            x = min_x;
-            dir = -dir;
+        text_msg_t msg;
+        bool got_msg = false;
+        if (disp1_q) {
+            if (xQueueReceive(disp1_q, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                got_msg = true;
+            }
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
-        lv_obj_set_x(dot, x);
-        lvgl_port_unlock();
-        vTaskDelay(pdMS_TO_TICKS(30));
+
+        TickType_t now = xTaskGetTickCount();
+        bool prune_needed = (now - last_prune) > pdMS_TO_TICKS(200);
+        bool indicator_needed = (now - last_indicator_update) > pdMS_TO_TICKS(250);
+
+        if (got_msg) {
+            size_t copy_len = msg.len;
+            if (copy_len > TEXT_BUF_SIZE) {
+                copy_len = TEXT_BUF_SIZE;
+            }
+            char line_buf[TEXT_BUF_SIZE + 1];
+            memcpy(line_buf, msg.payload, copy_len);
+            line_buf[copy_len] = '\0';
+            for (size_t i = 0; i < copy_len; i++) {
+                if (line_buf[i] == '\r' || line_buf[i] == '\n') {
+                    line_buf[i] = ' ';
+                }
+            }
+
+            lvgl_port_lock(0);
+            prune_expired_lines(lines, &line_count, now);
+            add_wrapped_lines(lines, &line_count, max_lines, line_buf, now, log_font,
+                              content_width, letter_space);
+            rebuild_log_textarea(log_area, lines, line_count, max_lines);
+            lvgl_port_unlock();
+        }
+
+        if (prune_needed) {
+            bool changed = false;
+            lvgl_port_lock(0);
+            int before = line_count;
+            prune_expired_lines(lines, &line_count, now);
+            changed = (before != line_count);
+            if (changed) {
+                rebuild_log_textarea(log_area, lines, line_count, max_lines);
+            }
+            lvgl_port_unlock();
+            last_prune = now;
+        }
+
+        if (indicator_needed) {
+            app_gpio_state_t state = gpio_get_state();
+            int8_t rssi = wifi_get_rssi();
+            char rssi_buf[16];
+            lvgl_port_lock(0);
+            if (state == APP_GPIO_STATE_IDLE) {
+                lv_label_set_text(rdy_label, "RDY");
+                lv_obj_align(rdy_label, LV_ALIGN_LEFT_MID, 0, 0);
+                lv_obj_clear_flag(rdy_label, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(rec_dot, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(rdy_label, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(rec_dot, LV_OBJ_FLAG_HIDDEN);
+            }
+            snprintf(rssi_buf, sizeof(rssi_buf), "RSSI %d", (int)rssi);
+            lv_label_set_text(rssi_label, rssi_buf);
+            lv_obj_align(rssi_label, LV_ALIGN_RIGHT_MID, 0, 0);
+            lvgl_port_unlock();
+            last_indicator_update = now;
+        }
     }
 }
 
@@ -262,5 +493,5 @@ void display_make_tasks(void)
 {
     ESP_ERROR_CHECK(app_lcd_init());
     ESP_ERROR_CHECK(app_lvgl_init());
-    xTaskCreatePinnedToCore(display_task, "display_task", 4096, NULL, 6, NULL, 1);
+    xTaskCreatePinnedToCore(display_task, "display_task", 8192, NULL, 6, NULL, 1);
 }

@@ -47,7 +47,6 @@ Outputs: queue text_queue
 #define PORT CONFIG_EXAMPLE_PORT
 #define INTERMEDIARY_BUF_SIZE 3080 // 3072 + sizeof(msg_hdr_t)
 #define DISP_Q_LEN 8
-#define TEXT_BUF_SIZE 128 //max text message size
 #define DELAYTIME 100
 
 static const char *TAG = "TCP tx task";
@@ -59,11 +58,6 @@ msg_hdr_t hdr = {
     .magic = 0xAA,
     .version = 1, //other fields set in tcp_tx_task
 };
-
-typedef struct {
-    uint16_t len;
-    uint8_t payload[TEXT_BUF_SIZE];
-} text_msg_t;
 
 static QueueHandle_t disp1_q;
 static QueueHandle_t disp2_q;
