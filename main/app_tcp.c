@@ -181,16 +181,16 @@ void tcp_tx_task(void *args)
                 size_t rb_bytes = 0;
                 uint8_t *rb_buf = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (rb_buf != NULL) {
-                    ESP_LOGD(TAG, "TCP tx idle state - dumped %zu bytes from audio rb", rb_bytes);
+                    ESP_LOGI(TAG, "TCP tx idle state - dumped %zu bytes from audio rb", rb_bytes);
                     vRingbufferReturnItem(audio_rb, (void *)rb_buf);
                 }
             }
             else if (gpio_get_state() == APP_GPIO_STATE_TRANSLATE_LANG1)
             {
                 /* message synthesis */
-                uint8_t *audio = (uint8_t *)xRingbufferReceive(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME));
+                uint8_t *audio = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (audio != NULL) {
-                    ESP_LOGD(TAG, "TCP tx lang1 state - read %zu bytes from audio", rb_bytes);
+                    ESP_LOGI(TAG, "TCP tx lang1 state - read %zu bytes from audio", rb_bytes);
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 1; //LANG1
                     hdr.payload_len = htonl(rb_bytes);
@@ -216,7 +216,7 @@ void tcp_tx_task(void *args)
             else if (gpio_get_state() == APP_GPIO_STATE_TRANSLATE_LANG2)
             {
                 /* message synthesis */
-                uint8_t *audio = (uint8_t *)xRingbufferReceive(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME));
+                uint8_t *audio = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (audio != NULL) {
                     ESP_LOGD(TAG, "TCP tx lang2 state - read %zu bytes from audio", rb_bytes);
                     /* copy header */

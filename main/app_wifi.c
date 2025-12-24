@@ -67,5 +67,5 @@ void wifi_make_tasks(void)
         ESP_LOGE(TAG, "Failed to create WiFi event group");
         return;
     }
-    xTaskCreatePinnedToCore(wifi_task, "wifi_task", 4096, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(wifi_task, "wifi_task", 4096, NULL, 8, NULL, 0);
 }
