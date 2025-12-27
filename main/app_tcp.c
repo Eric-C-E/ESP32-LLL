@@ -212,7 +212,7 @@ void tcp_tx_task(void *args)
                 /* message synthesis */
                 uint8_t *audio = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (audio != NULL) {
-                    ESP_LOGD(TAG, "TCP tx lang2 state - read %zu bytes from audio", rb_bytes);
+                    ESP_LOGI(TAG, "TCP tx lang2 state - read %zu bytes from audio", rb_bytes);
                     /* copy header */
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 2; //LANG2
