@@ -1,4 +1,18 @@
 dependencies:
+  78/esp_lcd_nv3023:
+    component_hash: fa88abfc19a312eb5e6f2ffa187e0a9faf67e01e758bfb979d3f9d92561a494f
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
@@ -171,10 +185,11 @@ dependencies:
       type: local
     version: '*'
 direct_dependencies:
+- 78/esp_lcd_nv3023
 - espressif/esp_lcd_gc9a01
 - espressif/esp_lvgl_port
 - lvgl/lvgl
 - protocol_examples_common
-manifest_hash: 5f99f7153f87ccf66e415eb07c65c407f02b5fa81cacfbc4ec66776e30da4523
+manifest_hash: aa530210e83e4445db7803f64155afb1797d931b093d1e4921aa31763679dbe8
 target: esp32s3
 version: 2.0.0

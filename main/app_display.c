@@ -383,6 +383,10 @@ void display_task(void *arg)
     lv_obj_add_state(log_area, LV_STATE_DISABLED);
     lv_obj_set_style_bg_opa(log_area, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_opa(log_area, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(log_area, lv_color_hex(0x00FF00), 0);
+    lv_obj_set_style_text_outline_stroke_color(log_area, lv_color_hex(0x00FF00), 0);
+    lv_obj_set_style_text_outline_stroke_opa(log_area, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_outline_stroke_width(log_area, 1, 0);
     lv_obj_set_style_pad_all(log_area, 2, 0);
     lv_obj_set_scrollbar_mode(log_area, LV_SCROLLBAR_MODE_OFF);
 
