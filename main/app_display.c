@@ -1,14 +1,12 @@
 /* 2025 Eric Liu
 This program defines a freeRTOS task to drive two SPI displays. The displays are multiplexed with their CS pins. 
 There is one SPI channel defined on SPI2, which drives LCD1 and LCD2 with their own io handles, panel handles, and LVGL objects.
-In use is esp_lcd component for GC9A01 (primary disp) and xxxxx (secondary disp)
+In use is esp_lcd component for GC9A01 (primary disp) and NV3041A (secondary disp)
 
 
 Inputs: Queue
 Outputs: None
 */
-
-
 
 
 #include "app_display.h"
@@ -63,9 +61,9 @@ static const char *TAG = "display_task";
 #define LCD_PARAM_BITS 8
 #define LCD_BITS_PER_PIXEL 16
 /*--------------------------------------*/
-#define LCD_H_RES_2 240
-#define LCD_V_RES_2 240
-#define LCD_DRAW_BUF_HEIGHT_2 40
+#define LCD_H_RES_2 480
+#define LCD_V_RES_2 128
+#define LCD_DRAW_BUF_HEIGHT_2 32
 #define LCD_DRAW_BUF_DOUBLE_2 1
 #define LCD_CMD_BITS_2 8
 #define LCD_PARAM_BITS_2 8
@@ -73,6 +71,9 @@ static const char *TAG = "display_task";
 /*--------------------------------------*/
 #define DISPLAY_MAX_LINES 16
 #define DISPLAY_LINE_MAX_AGE_MS 10000
+/*--------------------------------------*/
+#define DISPLAY_MAX_LINES_2 8
+#define DISPLAY_LINE_MAX_AGE_MS_2 10000
 
 /* lcd panel Ios */
 
@@ -326,7 +327,10 @@ esp_err_t app_lvgl_deinit(void)
 }
 
 void display_task(void *arg)
-{   
+{   /*
+    The 240x240 screen is operator-facing, so it has RSSI indicator and REC/RDY indicators. 
+    The 480x128 screen only has text.
+    */
     lvgl_port_lock(0);
     /* screen one of two */
     lv_obj_t *scr = lv_scr_act();
