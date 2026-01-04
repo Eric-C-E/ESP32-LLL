@@ -86,7 +86,7 @@ esp_err_t esp_lcd_new_panel_nv3041(const esp_lcd_panel_io_handle_t io, const esp
         break;
     }
 #else
-    switch (panel_dev_config->rgb_endian) {
+    switch (panel_dev_config->rgb_ele_order) {
     case LCD_RGB_ELEMENT_ORDER_RGB:
         nv3041->madctl_val = 0;
         break;
@@ -94,7 +94,7 @@ esp_err_t esp_lcd_new_panel_nv3041(const esp_lcd_panel_io_handle_t io, const esp
         nv3041->madctl_val |= LCD_CMD_BGR_BIT;
         break;
     default:
-        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported rgb endian");
+        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported rgb element order");
         break;
     }
 #endif
@@ -192,23 +192,16 @@ static esp_err_t panel_nv3041_reset(esp_lcd_panel_t *panel)
 //Minimal: only sets what is absolutely necessary > refer datasheet for tuning
 static const nv3041_lcd_init_cmd_t vendor_specific_init_default[] = {
 //  {cmd, { data }, data_size, delay_ms}
+    // Set scan window for timing engine (v_res=128, h_res=480)
+    {0x4A, (uint8_t []){0x00, 0x80}, 2, 0},
+    {0x4B, (uint8_t []){0x01, 0xE0}, 2, 0},
+    // Set column/row address window (MV=0)
+    {LCD_CMD_CASET, (uint8_t []){0x00, 0x00, 0x01, 0xDF}, 4, 0},
+    {LCD_CMD_RASET, (uint8_t []){0x00, 0x00, 0x00, 0x7F}, 4, 0},
+    // Normal display mode and exit IDLE (optional but safe defaults)
+    {LCD_CMD_NORON, NULL, 0, 0},
+    {LCD_CMD_IDMOFF, NULL, 0, 0},
     {LCD_CMD_DISPON, NULL, 0, 20},
-
-
-
-
-
-    // Set Gamma P
-
-
-
-
-    // Set Gamma N
-
-
-
-
-
 
 };
 

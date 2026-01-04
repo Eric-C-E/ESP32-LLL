@@ -8,4 +8,3 @@ dependencies:
   espressif/esp_lcd_gc9a01: ^2.0.4
   espressif/esp_lvgl_port: ^2.7.0
   lvgl/lvgl: ^9.4.0
-  78/esp_lcd_nv3023: ^1.0.0

@@ -23,5 +23,6 @@ idf_component_register(
         lvgl
         esp_ringbuf
         esp_netif
+        esp_lcd_nv3041
     REQUIRES esp_driver_i2s
 )
