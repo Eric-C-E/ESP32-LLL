@@ -16,6 +16,7 @@ Outputs: None
 #include "app_gpio.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "esp_err.h"
 #include "esp_check.h"
@@ -29,6 +30,8 @@ Outputs: None
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "esp_lcd_gc9a01.h"
+#include "esp_lcd_nv3041.h"
+#include "esp_lcd_panel_commands.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lvgl_port.h"
@@ -36,7 +39,7 @@ Outputs: None
 /* LCD SPI host and CLK */
 
 #define LCD_HOST SPI2_HOST
-#define LCD_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
+#define LCD_PIXEL_CLOCK_HZ (32 * 1000 * 1000)
 
 
 /* LCD PIN definitions */
@@ -44,8 +47,10 @@ Outputs: None
 #define PIN_NUM_MOSI 11
 #define PIN_NUM_SCLK 12
 #define PIN_NUM_CS 10
+#define PIN_NUM_CS_2 17
 #define PIN_NUM_DC 8
 #define PIN_NUM_RST -1
+#define PIN_NUM_RST_2 18
 #define PIN_NUM_MISO -1
 
 static const char *TAG = "display_task";
@@ -63,11 +68,12 @@ static const char *TAG = "display_task";
 /*--------------------------------------*/
 #define LCD_H_RES_2 480
 #define LCD_V_RES_2 128
-#define LCD_DRAW_BUF_HEIGHT_2 32
-#define LCD_DRAW_BUF_DOUBLE_2 1
+#define LCD_DRAW_BUF_HEIGHT_2 20
+#define LCD_DRAW_BUF_DOUBLE_2 0
 #define LCD_CMD_BITS_2 8
 #define LCD_PARAM_BITS_2 8
 #define LCD_BITS_PER_PIXEL_2 16
+#define LVGL_DRAW_BUF_HEIGHT_2 4
 /*--------------------------------------*/
 #define DISPLAY_MAX_LINES 16
 #define DISPLAY_LINE_MAX_AGE_MS 10000
@@ -87,6 +93,174 @@ static esp_lcd_panel_handle_t panel_handle_2 = NULL;
 
 static lv_display_t *lvgl_disp = NULL;
 static lv_display_t *lvgl_disp_2 = NULL;
+
+static void screen1_fill_color(uint16_t color)
+{
+    static uint16_t line[LCD_H_RES];
+    if (!panel_handle || LCD_H_RES <= 0 || LCD_V_RES <= 0) {
+        return;
+    }
+    for (int x = 0; x < LCD_H_RES; x++) {
+        line[x] = color;
+    }
+    for (int y = 0; y < LCD_V_RES; y++) {
+        esp_lcd_panel_draw_bitmap(panel_handle, 0, y, LCD_H_RES, y + 1, line);
+    }
+}
+
+static void screen2_fill_color(uint16_t color)
+{
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0) {
+        ESP_LOGW(TAG, "screen2_fill_color skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    for (int x = 0; x < LCD_H_RES_2; x++) {
+        line[x] = color;
+    }
+    int err_count = 0;
+    for (int y = 0; y < LCD_V_RES_2; y++) {
+        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
+        if (ret != ESP_OK) {
+            if (err_count == 0) {
+                ESP_LOGE(TAG, "screen2_fill_color draw failed at y=%d: %s", y, esp_err_to_name(ret));
+            }
+            err_count++;
+        }
+    }
+    if (err_count > 0) {
+        ESP_LOGE(TAG, "screen2_fill_color errors: %d", err_count);
+    }
+}
+
+static void screen2_draw_color_bars(void)
+{
+    static const uint16_t bars[] = {
+        0xFFFF, // white
+        0xFFE0, // yellow
+        0x07FF, // cyan
+        0x07E0, // green
+        0xF81F, // magenta
+        0xF800, // red
+        0x001F, // blue
+        0x0000, // black
+    };
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0) {
+        ESP_LOGW(TAG, "screen2_draw_color_bars skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    const size_t bar_count = sizeof(bars) / sizeof(bars[0]);
+    for (int x = 0; x < LCD_H_RES_2; x++) {
+        size_t idx = (size_t)(x * bar_count) / (size_t)LCD_H_RES_2;
+        if (idx >= bar_count) {
+            idx = bar_count - 1;
+        }
+        line[x] = bars[idx];
+    }
+    int err_count = 0;
+    for (int y = 0; y < LCD_V_RES_2; y++) {
+        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
+        if (ret != ESP_OK) {
+            if (err_count == 0) {
+                ESP_LOGE(TAG, "screen2_draw_color_bars failed at y=%d: %s", y, esp_err_to_name(ret));
+            }
+            err_count++;
+        }
+    }
+    if (err_count > 0) {
+        ESP_LOGE(TAG, "screen2_draw_color_bars errors: %d", err_count);
+    }
+}
+
+static void screen2_draw_checkerboard(uint16_t a, uint16_t b, int block)
+{
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0 || block <= 0) {
+        ESP_LOGW(TAG, "screen2_draw_checkerboard skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    int err_count = 0;
+    for (int y = 0; y < LCD_V_RES_2; y++) {
+        int row = (y / block) & 1;
+        for (int x = 0; x < LCD_H_RES_2; x++) {
+            int col = (x / block) & 1;
+            line[x] = (row ^ col) ? a : b;
+        }
+        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
+        if (ret != ESP_OK) {
+            if (err_count == 0) {
+                ESP_LOGE(TAG, "screen2_draw_checkerboard failed at y=%d: %s", y, esp_err_to_name(ret));
+            }
+            err_count++;
+        }
+    }
+    if (err_count > 0) {
+        ESP_LOGE(TAG, "screen2_draw_checkerboard errors: %d", err_count);
+    }
+}
+
+static void screen2_draw_horizontal_gradient(void)
+{
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 1 || LCD_V_RES_2 <= 0) {
+        ESP_LOGW(TAG, "screen2_draw_horizontal_gradient skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    for (int x = 0; x < LCD_H_RES_2; x++) {
+        uint8_t level = (uint8_t)((x * 31) / (LCD_H_RES_2 - 1));
+        uint16_t gray = (uint16_t)((level << 11) | (level << 6) | level);
+        line[x] = gray;
+    }
+    int err_count = 0;
+    for (int y = 0; y < LCD_V_RES_2; y++) {
+        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
+        if (ret != ESP_OK) {
+            if (err_count == 0) {
+                ESP_LOGE(TAG, "screen2_draw_horizontal_gradient failed at y=%d: %s", y, esp_err_to_name(ret));
+            }
+            err_count++;
+        }
+    }
+    if (err_count > 0) {
+        ESP_LOGE(TAG, "screen2_draw_horizontal_gradient errors: %d", err_count);
+    }
+}
+
+static void screen2_test_task(void *arg)
+{
+    TaskHandle_t notify_task = (TaskHandle_t)arg;
+    const TickType_t delay = pdMS_TO_TICKS(5000);
+    ESP_LOGI(TAG, "screen2 test patterns: start");
+    ESP_LOGI(TAG, "screen2 pattern: black");
+    screen2_fill_color(0x0000);
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 pattern: white");
+    screen2_fill_color(0xFFFF);
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 invert on");
+    esp_lcd_panel_invert_color(panel_handle_2, true);
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 invert off");
+    esp_lcd_panel_invert_color(panel_handle_2, false);
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 pattern: color bars");
+    screen2_draw_color_bars();
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 pattern: checkerboard");
+    screen2_draw_checkerboard(0xFFFF, 0x0000, 16);
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 pattern: gradient");
+    screen2_draw_horizontal_gradient();
+    vTaskDelay(delay);
+    ESP_LOGI(TAG, "screen2 pattern: black end");
+    screen2_fill_color(0x0000);
+    ESP_LOGI(TAG, "screen2 test patterns: done");
+    if (notify_task) {
+        xTaskNotifyGive(notify_task);
+    }
+    vTaskDelete(NULL);
+}
 
 typedef struct {
     TickType_t ts;
@@ -219,6 +393,10 @@ esp_err_t app_lcd_init(void)
 {
     esp_err_t ret = ESP_OK;
 
+    esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+    esp_log_level_set("lcd_panel.gc9a01", ESP_LOG_VERBOSE);
+    esp_log_level_set("lcd_panel.nv3041", ESP_LOG_VERBOSE);
+
     ESP_LOGD(TAG, "Initialize SPI bus");
     const spi_bus_config_t buscfg = {
         .miso_io_num = PIN_NUM_MISO,
@@ -252,13 +430,47 @@ esp_err_t app_lcd_init(void)
         #else
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
         #endif
-            .bits_per_pixel = 16,
+            .bits_per_pixel = LCD_BITS_PER_PIXEL,
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_gc9a01(io_handle, &panel_config, &panel_handle), err, TAG, "New panel failed");
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, LCD_INVERT_COLORS));
+
+    ESP_LOGD(TAG, "Install panel IO for screen 2");
+    const esp_lcd_panel_io_spi_config_t io_config_2 = {
+        .dc_gpio_num = PIN_NUM_DC,
+        .cs_gpio_num = PIN_NUM_CS_2,
+        .pclk_hz = LCD_PIXEL_CLOCK_HZ,
+        .lcd_cmd_bits = LCD_CMD_BITS_2,
+        .lcd_param_bits = LCD_PARAM_BITS_2,
+        .spi_mode = 0,
+        .trans_queue_depth = 10,
+    };
+    ESP_GOTO_ON_ERROR(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config_2, &io_handle_2), err, TAG,
+                      "Failed to install panel IO (screen 2)");
+
+    const esp_lcd_panel_dev_config_t panel_config_2 = {
+        .reset_gpio_num = PIN_NUM_RST_2,
+        #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+            .color_space = ESP_LCD_COLOR_SPACE_BGR,
+        #elif ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+            .rgb_endian = LCD_RGB_ENDIAN_BGR,
+        #else
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        #endif
+            .bits_per_pixel = LCD_BITS_PER_PIXEL_2,
+    };
+    ESP_GOTO_ON_ERROR(esp_lcd_new_panel_nv3041(io_handle_2, &panel_config_2, &panel_handle_2), err, TAG,
+                      "New panel failed (screen 2)");
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle_2));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle_2));
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_2, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_2, false));
+
+    screen1_fill_color(0x0000);
+    screen2_fill_color(0x0000);
 
     return ret;
 
@@ -271,6 +483,14 @@ esp_err_t app_lcd_init(void)
             esp_lcd_panel_io_del(io_handle);
             io_handle = NULL;
         }
+        if (panel_handle_2) {
+            esp_lcd_panel_del(panel_handle_2);
+            panel_handle_2 = NULL;
+        }
+        if (io_handle_2) {
+            esp_lcd_panel_io_del(io_handle_2);
+            io_handle_2 = NULL;
+        }
         spi_bus_free(LCD_HOST);
 
     return ret;
@@ -279,6 +499,14 @@ esp_err_t app_lcd_init(void)
 esp_err_t app_lcd_deinit(void)
 {
     esp_err_t ret = ESP_OK;
+    if (panel_handle_2) {
+        ESP_RETURN_ON_ERROR(esp_lcd_panel_del(panel_handle_2), TAG, "LCD panel 2 de-initialization failed");
+        panel_handle_2 = NULL;
+    }
+    if (io_handle_2) {
+        ESP_RETURN_ON_ERROR(esp_lcd_panel_io_del(io_handle_2), TAG, "LCD panel IO 2 de-initialization failed");
+        io_handle_2 = NULL;
+    }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_del(panel_handle), TAG, "LCD panel de-initialization failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_del(io_handle), TAG, "LCD panel IO de-initialization failed");
     ESP_RETURN_ON_ERROR(spi_bus_free(LCD_HOST), TAG, "SPI bus de-initialization failed");
@@ -315,11 +543,35 @@ esp_err_t app_lvgl_init(void)
     };
     lvgl_disp = lvgl_port_add_disp(&disp_cfg);
 
+    const lvgl_port_display_cfg_t disp_cfg_2 = {
+        .io_handle = io_handle_2,
+        .panel_handle = panel_handle_2,
+        .buffer_size = LCD_H_RES_2 * LVGL_DRAW_BUF_HEIGHT_2 * sizeof(uint16_t),
+        .double_buffer = LCD_DRAW_BUF_DOUBLE_2,
+        .hres = LCD_H_RES_2,
+        .vres = LCD_V_RES_2,
+        .monochrome = false,
+        .flags = {
+            .buff_dma = false,
+#if LVGL_VERSION_MAJOR >= 9
+            .swap_bytes = true,
+#endif
+        }
+    };
+    lvgl_disp_2 = lvgl_port_add_disp(&disp_cfg_2);
+    if (!lvgl_disp_2) {
+        ESP_LOGE(TAG, "LVGL disp 2 init failed");
+    }
+
     return ESP_OK;
 }
 
 esp_err_t app_lvgl_deinit(void)
 {
+    if (lvgl_disp_2) {
+        ESP_RETURN_ON_ERROR(lvgl_port_remove_disp(lvgl_disp_2), TAG, "LVGL disp 2 removing failed");
+        lvgl_disp_2 = NULL;
+    }
     ESP_RETURN_ON_ERROR(lvgl_port_remove_disp(lvgl_disp), TAG, "LVGL disp removing failed");
     ESP_RETURN_ON_ERROR(lvgl_port_deinit(), TAG, "LVGL deinit failed");
 
@@ -500,6 +752,12 @@ void display_task(void *arg)
 void display_make_tasks(void)
 {
     ESP_ERROR_CHECK(app_lcd_init());
+    TaskHandle_t screen2_task = NULL;
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    xTaskCreatePinnedToCore(screen2_test_task, "screen2_test", 4096, current_task, 5, &screen2_task, 1);
+    if (screen2_task) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
     ESP_ERROR_CHECK(app_lvgl_init());
     xTaskCreatePinnedToCore(display_task, "display_task", 8192, NULL, 6, NULL, 1);
 }
