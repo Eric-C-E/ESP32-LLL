@@ -10,11 +10,9 @@ Outputs: None
 
 
 #include "app_display.h"
-#include "app_tasks.h"
 #include "app_tcp.h"
 #include "app_wifi.h"
 #include "app_gpio.h"
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -31,10 +29,13 @@ Outputs: None
 #include "driver/gpio.h"
 #include "esp_lcd_gc9a01.h"
 #include "esp_lcd_nv3041.h"
-#include "esp_lcd_panel_commands.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lvgl_port.h"
+
+#if LV_FONT_MONTSERRAT_28
+LV_FONT_DECLARE(lv_font_montserrat_28);
+#endif
 
 /* LCD SPI host and CLK */
 
@@ -68,12 +69,21 @@ static const char *TAG = "display_task";
 /*--------------------------------------*/
 #define LCD_H_RES_2 480
 #define LCD_V_RES_2 128
-#define LCD_DRAW_BUF_HEIGHT_2 20
-#define LCD_DRAW_BUF_DOUBLE_2 0
+#define LCD_DRAW_BUF_DOUBLE_2 true
 #define LCD_CMD_BITS_2 8
 #define LCD_PARAM_BITS_2 8
 #define LCD_BITS_PER_PIXEL_2 16
-#define LVGL_DRAW_BUF_HEIGHT_2 4
+#define LCD_DRAW_BUF_HEIGHT_2 4
+#define SCREEN2_SWAP_BYTES false
+#define SCREEN2_LVGL_DMA true
+#define SCREEN2_TEST_MODE 2
+#define SCREEN2_TEST_SINGLE 2
+#define SCREEN2_TEST_OBSERVE_MS 10000
+#define SCREEN2_EARLY_PANEL_TEST 0
+#define SCREEN2_PANEL_HEIGHT 272
+#define SCREEN2_SCAN_STEP 16
+#define SCREEN2_SCAN_BAND_HEIGHT 16
+#define SCREEN2_SCAN_HOLD_MS 1000
 /*--------------------------------------*/
 #define DISPLAY_MAX_LINES 16
 #define DISPLAY_LINE_MAX_AGE_MS 10000
@@ -93,6 +103,268 @@ static esp_lcd_panel_handle_t panel_handle_2 = NULL;
 
 static lv_display_t *lvgl_disp = NULL;
 static lv_display_t *lvgl_disp_2 = NULL;
+
+static void screen2_fill_color(uint16_t color);
+
+static int32_t min_i32(int32_t a, int32_t b)
+{
+    return (a < b) ? a : b;
+}
+
+static void create_logo_rect(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    if (w <= 0 || h <= 0) {
+        return;
+    }
+    lv_obj_t *rect = lv_obj_create(parent);
+    lv_obj_remove_style_all(rect);
+    lv_obj_set_pos(rect, x, y);
+    lv_obj_set_size(rect, w, h);
+    lv_obj_set_style_bg_color(rect, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(rect, LV_OPA_COVER, 0);
+}
+
+static void show_boot_logo(lv_display_t *disp, int32_t disp_w, int32_t disp_h)
+{
+    if (!disp || disp_w <= 0 || disp_h <= 0) {
+        return;
+    }
+    lv_display_t *prev = lv_display_get_default();
+    lv_display_set_default(disp);
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    int32_t base = min_i32(disp_w, disp_h);
+    int32_t logo_w = (base * 60) / 100;
+    int32_t logo_h = (disp_h * 70) / 100;
+    if (logo_w < 24) {
+        logo_w = 24;
+    }
+    if (logo_h < 24) {
+        logo_h = 24;
+    }
+    int32_t gap = logo_h / 12;
+    int32_t letter_h = (logo_h - (gap * 2)) / 3;
+    if (letter_h < 8) {
+        letter_h = 8;
+        gap = 2;
+        logo_h = (letter_h * 3) + (gap * 2);
+    }
+    int32_t thickness = letter_h / 4;
+    if (thickness < 3) {
+        thickness = 3;
+    }
+    if (thickness > letter_h) {
+        thickness = letter_h;
+    }
+
+    int32_t logo_x = (disp_w - logo_w) / 2;
+    int32_t logo_y = (disp_h - logo_h) / 2;
+
+    for (int i = 0; i < 3; i++) {
+        int32_t top = logo_y + i * (letter_h + gap);
+        create_logo_rect(scr, logo_x, top, thickness, letter_h);
+        create_logo_rect(scr, logo_x, top + letter_h - thickness, logo_w, thickness);
+    }
+
+    lv_display_set_default(prev);
+}
+
+static void clear_display(lv_display_t *disp)
+{
+    if (!disp) {
+        return;
+    }
+    lv_display_t *prev = lv_display_get_default();
+    lv_display_set_default(disp);
+    lv_obj_clean(lv_scr_act());
+    lv_display_set_default(prev);
+}
+
+static void screen2_panel_color_bars(void)
+{
+    static const uint16_t bars[] = {
+        0xFFFF, // white
+        0xFFE0, // yellow
+        0x07FF, // cyan
+        0x07E0, // green
+        0xF81F, // magenta
+        0xF800, // red
+        0x001F, // blue
+        0x0000, // black
+    };
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0) {
+        ESP_LOGE(TAG, "screen2_panel_color_bars skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    ESP_LOGE(TAG, "screen2_panel_color_bars: handle=%p", panel_handle_2);
+    const size_t bar_count = sizeof(bars) / sizeof(bars[0]);
+    for (int x = 0; x < LCD_H_RES_2; x++) {
+        size_t idx = (size_t)(x * bar_count) / (size_t)LCD_H_RES_2;
+        if (idx >= bar_count) {
+            idx = bar_count - 1;
+        }
+        line[x] = bars[idx];
+    }
+    for (int y = 0; y < LCD_V_RES_2; y++) {
+        esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
+    }
+}
+
+static void screen2_panel_scan_bands(void)
+{
+    static uint16_t line[LCD_H_RES_2];
+    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || SCREEN2_PANEL_HEIGHT <= 0) {
+        ESP_LOGE(TAG, "screen2_panel_scan_bands skipped: panel_handle_2=%p", panel_handle_2);
+        return;
+    }
+    for (int x = 0; x < LCD_H_RES_2; x++) {
+        line[x] = 0xFFFF;
+    }
+    int max_y = SCREEN2_PANEL_HEIGHT - SCREEN2_SCAN_BAND_HEIGHT;
+    if (max_y < 0) {
+        max_y = 0;
+    }
+    for (int y = 0; y <= max_y; y += SCREEN2_SCAN_STEP) {
+        ESP_LOGE(TAG, "screen2 scan band y=%d", y);
+        for (int by = 0; by < SCREEN2_SCAN_BAND_HEIGHT; by++) {
+            int row = y + by;
+            esp_lcd_panel_draw_bitmap(panel_handle_2, 0, row, LCD_H_RES_2, row + 1, line);
+        }
+        vTaskDelay(pdMS_TO_TICKS(SCREEN2_SCAN_HOLD_MS));
+        screen2_fill_color(0x0000);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+static void screen2_lvgl_color_test(void)
+{
+    if (!lvgl_disp_2) {
+        ESP_LOGW(TAG, "screen2 LVGL color test skipped: no lvgl_disp_2");
+        return;
+    }
+    lv_display_t *prev = lv_display_get_default();
+    lv_display_set_default(lvgl_disp_2);
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    int32_t bar_w = LCD_H_RES_2 / 3;
+    int32_t bar_h = LCD_V_RES_2;
+    lv_obj_t *bar_red = lv_obj_create(scr);
+    lv_obj_remove_style_all(bar_red);
+    lv_obj_set_pos(bar_red, 0, 0);
+    lv_obj_set_size(bar_red, bar_w, bar_h);
+    lv_obj_set_style_bg_color(bar_red, lv_color_hex(0xFF0000), 0);
+    lv_obj_set_style_bg_opa(bar_red, LV_OPA_COVER, 0);
+
+    lv_obj_t *bar_green = lv_obj_create(scr);
+    lv_obj_remove_style_all(bar_green);
+    lv_obj_set_pos(bar_green, bar_w, 0);
+    lv_obj_set_size(bar_green, bar_w, bar_h);
+    lv_obj_set_style_bg_color(bar_green, lv_color_hex(0x00FF00), 0);
+    lv_obj_set_style_bg_opa(bar_green, LV_OPA_COVER, 0);
+
+    lv_obj_t *bar_blue = lv_obj_create(scr);
+    lv_obj_remove_style_all(bar_blue);
+    lv_obj_set_pos(bar_blue, bar_w * 2, 0);
+    lv_obj_set_size(bar_blue, LCD_H_RES_2 - (bar_w * 2), bar_h);
+    lv_obj_set_style_bg_color(bar_blue, lv_color_hex(0x0000FF), 0);
+    lv_obj_set_style_bg_opa(bar_blue, LV_OPA_COVER, 0);
+
+    lv_refr_now(lvgl_disp_2);
+    lv_display_set_default(prev);
+}
+
+static void screen2_lvgl_text_test(const char *text)
+{
+    if (!lvgl_disp_2) {
+        ESP_LOGW(TAG, "screen2 LVGL text test skipped: no lvgl_disp_2");
+        return;
+    }
+    lv_display_t *prev = lv_display_get_default();
+    lv_display_set_default(lvgl_disp_2);
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    lv_obj_t *label = lv_label_create(scr);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_center(label);
+
+    lv_refr_now(lvgl_disp_2);
+    lv_display_set_default(prev);
+}
+
+typedef enum {
+    SCREEN2_TEST_PANEL_BARS = 0,
+    SCREEN2_TEST_PANEL_WHITE = 1,
+    SCREEN2_TEST_LVGL_BARS = 2,
+    SCREEN2_TEST_LVGL_TEXT = 3,
+} screen2_test_id_t;
+
+static void run_screen2_test(screen2_test_id_t test_id, TickType_t hold)
+{
+    switch (test_id) {
+        case SCREEN2_TEST_PANEL_BARS:
+            ESP_LOGE(TAG, "screen2 test: panel color bars");
+            lvgl_port_lock(0);
+            screen2_panel_color_bars();
+            vTaskDelay(hold);
+            lvgl_port_unlock();
+            break;
+        case SCREEN2_TEST_PANEL_WHITE:
+            ESP_LOGE(TAG, "screen2 test: panel solid white");
+            lvgl_port_lock(0);
+            screen2_fill_color(0xFFFF);
+            vTaskDelay(hold);
+            lvgl_port_unlock();
+            break;
+        case SCREEN2_TEST_LVGL_BARS:
+            ESP_LOGE(TAG, "screen2 test: LVGL RGB bars");
+            lvgl_port_lock(0);
+            screen2_lvgl_color_test();
+            lvgl_port_unlock();
+            vTaskDelay(hold);
+            break;
+        case SCREEN2_TEST_LVGL_TEXT:
+            ESP_LOGE(TAG, "screen2 test: LVGL text");
+            lvgl_port_lock(0);
+            screen2_lvgl_text_test("LVGL TEST");
+            lvgl_port_unlock();
+            vTaskDelay(hold);
+            break;
+        default:
+            break;
+    }
+    lvgl_port_lock(0);
+    clear_display(lvgl_disp_2);
+    lvgl_port_unlock();
+}
+
+static void run_screen2_tests(void)
+{
+#if SCREEN2_TEST_MODE
+    const TickType_t hold = pdMS_TO_TICKS(SCREEN2_TEST_OBSERVE_MS);
+    ESP_LOGE(TAG, "screen2 test sequence start (mode=%d single=%d)", SCREEN2_TEST_MODE, SCREEN2_TEST_SINGLE);
+    ESP_LOGE(TAG, "screen2 test handles: panel=%p lvgl=%p", panel_handle_2, lvgl_disp_2);
+#if SCREEN2_TEST_MODE == 2
+    run_screen2_test((screen2_test_id_t)SCREEN2_TEST_SINGLE, hold);
+#else
+    run_screen2_test(SCREEN2_TEST_PANEL_BARS, hold);
+    run_screen2_test(SCREEN2_TEST_PANEL_WHITE, hold);
+    run_screen2_test(SCREEN2_TEST_LVGL_BARS, hold);
+    run_screen2_test(SCREEN2_TEST_LVGL_TEXT, hold);
+#endif
+    ESP_LOGE(TAG, "screen2 test sequence done");
+#endif
+}
 
 static void screen1_fill_color(uint16_t color)
 {
@@ -131,135 +403,6 @@ static void screen2_fill_color(uint16_t color)
     if (err_count > 0) {
         ESP_LOGE(TAG, "screen2_fill_color errors: %d", err_count);
     }
-}
-
-static void screen2_draw_color_bars(void)
-{
-    static const uint16_t bars[] = {
-        0xFFFF, // white
-        0xFFE0, // yellow
-        0x07FF, // cyan
-        0x07E0, // green
-        0xF81F, // magenta
-        0xF800, // red
-        0x001F, // blue
-        0x0000, // black
-    };
-    static uint16_t line[LCD_H_RES_2];
-    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0) {
-        ESP_LOGW(TAG, "screen2_draw_color_bars skipped: panel_handle_2=%p", panel_handle_2);
-        return;
-    }
-    const size_t bar_count = sizeof(bars) / sizeof(bars[0]);
-    for (int x = 0; x < LCD_H_RES_2; x++) {
-        size_t idx = (size_t)(x * bar_count) / (size_t)LCD_H_RES_2;
-        if (idx >= bar_count) {
-            idx = bar_count - 1;
-        }
-        line[x] = bars[idx];
-    }
-    int err_count = 0;
-    for (int y = 0; y < LCD_V_RES_2; y++) {
-        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
-        if (ret != ESP_OK) {
-            if (err_count == 0) {
-                ESP_LOGE(TAG, "screen2_draw_color_bars failed at y=%d: %s", y, esp_err_to_name(ret));
-            }
-            err_count++;
-        }
-    }
-    if (err_count > 0) {
-        ESP_LOGE(TAG, "screen2_draw_color_bars errors: %d", err_count);
-    }
-}
-
-static void screen2_draw_checkerboard(uint16_t a, uint16_t b, int block)
-{
-    static uint16_t line[LCD_H_RES_2];
-    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0 || block <= 0) {
-        ESP_LOGW(TAG, "screen2_draw_checkerboard skipped: panel_handle_2=%p", panel_handle_2);
-        return;
-    }
-    int err_count = 0;
-    for (int y = 0; y < LCD_V_RES_2; y++) {
-        int row = (y / block) & 1;
-        for (int x = 0; x < LCD_H_RES_2; x++) {
-            int col = (x / block) & 1;
-            line[x] = (row ^ col) ? a : b;
-        }
-        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
-        if (ret != ESP_OK) {
-            if (err_count == 0) {
-                ESP_LOGE(TAG, "screen2_draw_checkerboard failed at y=%d: %s", y, esp_err_to_name(ret));
-            }
-            err_count++;
-        }
-    }
-    if (err_count > 0) {
-        ESP_LOGE(TAG, "screen2_draw_checkerboard errors: %d", err_count);
-    }
-}
-
-static void screen2_draw_horizontal_gradient(void)
-{
-    static uint16_t line[LCD_H_RES_2];
-    if (!panel_handle_2 || LCD_H_RES_2 <= 1 || LCD_V_RES_2 <= 0) {
-        ESP_LOGW(TAG, "screen2_draw_horizontal_gradient skipped: panel_handle_2=%p", panel_handle_2);
-        return;
-    }
-    for (int x = 0; x < LCD_H_RES_2; x++) {
-        uint8_t level = (uint8_t)((x * 31) / (LCD_H_RES_2 - 1));
-        uint16_t gray = (uint16_t)((level << 11) | (level << 6) | level);
-        line[x] = gray;
-    }
-    int err_count = 0;
-    for (int y = 0; y < LCD_V_RES_2; y++) {
-        esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
-        if (ret != ESP_OK) {
-            if (err_count == 0) {
-                ESP_LOGE(TAG, "screen2_draw_horizontal_gradient failed at y=%d: %s", y, esp_err_to_name(ret));
-            }
-            err_count++;
-        }
-    }
-    if (err_count > 0) {
-        ESP_LOGE(TAG, "screen2_draw_horizontal_gradient errors: %d", err_count);
-    }
-}
-
-static void screen2_test_task(void *arg)
-{
-    TaskHandle_t notify_task = (TaskHandle_t)arg;
-    const TickType_t delay = pdMS_TO_TICKS(5000);
-    ESP_LOGI(TAG, "screen2 test patterns: start");
-    ESP_LOGI(TAG, "screen2 pattern: black");
-    screen2_fill_color(0x0000);
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 pattern: white");
-    screen2_fill_color(0xFFFF);
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 invert on");
-    esp_lcd_panel_invert_color(panel_handle_2, true);
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 invert off");
-    esp_lcd_panel_invert_color(panel_handle_2, false);
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 pattern: color bars");
-    screen2_draw_color_bars();
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 pattern: checkerboard");
-    screen2_draw_checkerboard(0xFFFF, 0x0000, 16);
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 pattern: gradient");
-    screen2_draw_horizontal_gradient();
-    vTaskDelay(delay);
-    ESP_LOGI(TAG, "screen2 pattern: black end");
-    screen2_fill_color(0x0000);
-    ESP_LOGI(TAG, "screen2 test patterns: done");
-    if (notify_task) {
-        xTaskNotifyGive(notify_task);
-    }
-    vTaskDelete(NULL);
 }
 
 typedef struct {
@@ -323,6 +466,15 @@ static void prune_expired_lines(log_line_t *lines, int *line_count, TickType_t n
 {
     while (*line_count > 0 &&
            (now - lines[0].ts) > pdMS_TO_TICKS(DISPLAY_LINE_MAX_AGE_MS)) {
+        drop_oldest_line(lines, line_count);
+    }
+}
+
+static void prune_expired_lines_with_age(log_line_t *lines, int *line_count, TickType_t now,
+                                         TickType_t max_age_ticks)
+{
+    while (*line_count > 0 &&
+           (now - lines[0].ts) > max_age_ticks) {
         drop_oldest_line(lines, line_count);
     }
 }
@@ -424,9 +576,9 @@ esp_err_t app_lcd_init(void)
     const esp_lcd_panel_dev_config_t panel_config = {
         .reset_gpio_num = PIN_NUM_RST,
         #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-            .color_space = ESP_LCD_COLOR_SPACE_BGR,
+            .color_space = ESP_LCD_COLOR_SPACE_RGB,
         #elif ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-            .rgb_endian = LCD_RGB_ENDIAN_BGR,
+            .rgb_endian = LCD_RGB_ENDIAN_RGB,
         #else
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
         #endif
@@ -458,7 +610,7 @@ esp_err_t app_lcd_init(void)
         #elif ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
             .rgb_endian = LCD_RGB_ENDIAN_BGR,
         #else
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
         #endif
             .bits_per_pixel = LCD_BITS_PER_PIXEL_2,
     };
@@ -546,15 +698,20 @@ esp_err_t app_lvgl_init(void)
     const lvgl_port_display_cfg_t disp_cfg_2 = {
         .io_handle = io_handle_2,
         .panel_handle = panel_handle_2,
-        .buffer_size = LCD_H_RES_2 * LVGL_DRAW_BUF_HEIGHT_2 * sizeof(uint16_t),
+        .buffer_size = LCD_H_RES_2 * LCD_DRAW_BUF_HEIGHT_2 * sizeof(uint16_t),
         .double_buffer = LCD_DRAW_BUF_DOUBLE_2,
         .hres = LCD_H_RES_2,
         .vres = LCD_V_RES_2,
         .monochrome = false,
+        .rotation = {
+            .swap_xy = false,
+            .mirror_x = false,
+            .mirror_y = true,
+        },
         .flags = {
-            .buff_dma = false,
+            .buff_dma = SCREEN2_LVGL_DMA,
 #if LVGL_VERSION_MAJOR >= 9
-            .swap_bytes = true,
+            .swap_bytes = SCREEN2_SWAP_BYTES,
 #endif
         }
     };
@@ -583,6 +740,20 @@ void display_task(void *arg)
     The 240x240 screen is operator-facing, so it has RSSI indicator and REC/RDY indicators. 
     The 480x128 screen only has text.
     */
+    ESP_LOGE(TAG, "display_task: screen2 tests begin");
+    run_screen2_tests();
+    ESP_LOGE(TAG, "display_task: screen2 tests end");
+
+    lvgl_port_lock(0);
+    show_boot_logo(lvgl_disp, LCD_H_RES, LCD_V_RES);
+    show_boot_logo(lvgl_disp_2, LCD_H_RES_2, LCD_V_RES_2);
+    lvgl_port_unlock();
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    lvgl_port_lock(0);
+    clear_display(lvgl_disp);
+    clear_display(lvgl_disp_2);
+    lvgl_port_unlock();
+
     lvgl_port_lock(0);
     /* screen one of two */
     lv_obj_t *scr = lv_scr_act();
@@ -601,6 +772,13 @@ void display_task(void *arg)
     const int16_t indicator_y = text_y - indicator_h;
 
     /* screen two of two WIP */
+    lv_obj_t *scr_2 = NULL;
+    lv_obj_t *log_area_2 = NULL;
+    const int16_t text_margin_2 = 8;
+    const int16_t text_x_2 = text_margin_2;
+    const int16_t text_y_2 = text_margin_2;
+    const int16_t text_w_2 = LCD_H_RES_2 - (text_margin_2 * 2);
+    const int16_t text_h_2 = LCD_V_RES_2 - (text_margin_2 * 2);
 
     lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
@@ -667,29 +845,96 @@ void display_task(void *arg)
         content_width = 1;
     }
 
+    const lv_font_t *log_font_2 = NULL;
+    int32_t content_width_2 = 1;
+    int max_lines_2 = 1;
+    int32_t letter_space_2 = 0;
+    if (lvgl_disp_2) {
+        lv_display_t *prev_disp = lv_display_get_default();
+        lv_display_set_default(lvgl_disp_2);
+        scr_2 = lv_scr_act();
+        lv_obj_set_style_bg_color(scr_2, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(scr_2, LV_OPA_COVER, 0);
+
+        log_area_2 = lv_textarea_create(scr_2);
+        lv_obj_set_size(log_area_2, text_w_2, text_h_2);
+        lv_obj_set_pos(log_area_2, text_x_2, text_y_2);
+        lv_textarea_set_max_length(log_area_2, 1024);
+        lv_textarea_set_cursor_click_pos(log_area_2, false);
+        lv_textarea_set_password_mode(log_area_2, false);
+        lv_obj_add_state(log_area_2, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(log_area_2, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_opa(log_area_2, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_text_color(log_area_2, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_outline_stroke_color(log_area_2, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_outline_stroke_opa(log_area_2, LV_OPA_COVER, 0);
+        lv_obj_set_style_text_outline_stroke_width(log_area_2, 1, 0);
+        lv_obj_set_style_pad_all(log_area_2, 4, 0);
+        lv_obj_set_scrollbar_mode(log_area_2, LV_SCROLLBAR_MODE_OFF);
+#if LV_FONT_MONTSERRAT_28
+        lv_obj_set_style_text_font(log_area_2, &lv_font_montserrat_28, 0);
+#endif
+
+        log_font_2 = lv_obj_get_style_text_font(log_area_2, LV_PART_MAIN);
+        const int32_t line_space_2 = lv_obj_get_style_text_line_space(log_area_2, LV_PART_MAIN);
+        letter_space_2 = lv_obj_get_style_text_letter_space(log_area_2, LV_PART_MAIN);
+        const int32_t pad_left_2 = lv_obj_get_style_pad_left(log_area_2, LV_PART_MAIN);
+        const int32_t pad_right_2 = lv_obj_get_style_pad_right(log_area_2, LV_PART_MAIN);
+        const int32_t pad_top_2 = lv_obj_get_style_pad_top(log_area_2, LV_PART_MAIN);
+        const int32_t pad_bottom_2 = lv_obj_get_style_pad_bottom(log_area_2, LV_PART_MAIN);
+        const uint16_t line_height_2 = lv_font_get_line_height(log_font_2) + line_space_2;
+        int32_t content_height_2 = text_h_2 - pad_top_2 - pad_bottom_2;
+        content_width_2 = text_w_2 - pad_left_2 - pad_right_2;
+        max_lines_2 = (line_height_2 > 0) ? (content_height_2 / line_height_2) : 1;
+        if (max_lines_2 < 1) {
+            max_lines_2 = 1;
+        }
+        if (max_lines_2 > DISPLAY_MAX_LINES_2) {
+            max_lines_2 = DISPLAY_MAX_LINES_2;
+        }
+        if (content_width_2 < 1) {
+            content_width_2 = 1;
+        }
+        lv_display_set_default(prev_disp);
+    }
+
     ESP_LOGI(TAG, "display task running");
     lvgl_port_unlock();
 
     static log_line_t lines[DISPLAY_MAX_LINES];
+    static log_line_t lines_2[DISPLAY_MAX_LINES_2];
     static int line_count = 0;
+    static int line_count_2 = 0;
     QueueHandle_t disp1_q = tcp_rx_get_disp1_q();
+    QueueHandle_t disp2_q = tcp_rx_get_disp2_q();
     TickType_t last_indicator_update = 0;
     TickType_t last_prune = 0;
+    TickType_t last_prune_2 = 0;
+    const TickType_t max_age_2 = pdMS_TO_TICKS(DISPLAY_LINE_MAX_AGE_MS_2);
 
     while (1) {
         text_msg_t msg;
+        text_msg_t msg_2;
         bool got_msg = false;
+        bool got_msg_2 = false;
         if (disp1_q) {
             if (xQueueReceive(disp1_q, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
                 got_msg = true;
             }
-        } else {
+        } else if (!disp2_q) {
             vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if (disp2_q) {
+            TickType_t wait_ticks = disp1_q ? 0 : pdMS_TO_TICKS(100);
+            if (xQueueReceive(disp2_q, &msg_2, wait_ticks) == pdTRUE) {
+                got_msg_2 = true;
+            }
         }
 
         TickType_t now = xTaskGetTickCount();
         bool prune_needed = (now - last_prune) > pdMS_TO_TICKS(200);
         bool indicator_needed = (now - last_indicator_update) > pdMS_TO_TICKS(250);
+        bool prune_needed_2 = (now - last_prune_2) > pdMS_TO_TICKS(200);
 
         if (got_msg) {
             size_t copy_len = msg.len;
@@ -713,6 +958,28 @@ void display_task(void *arg)
             lvgl_port_unlock();
         }
 
+        if (got_msg_2 && log_area_2) {
+            size_t copy_len = msg_2.len;
+            if (copy_len > TEXT_BUF_SIZE) {
+                copy_len = TEXT_BUF_SIZE;
+            }
+            char line_buf[TEXT_BUF_SIZE + 1];
+            memcpy(line_buf, msg_2.payload, copy_len);
+            line_buf[copy_len] = '\0';
+            for (size_t i = 0; i < copy_len; i++) {
+                if (line_buf[i] == '\r' || line_buf[i] == '\n') {
+                    line_buf[i] = ' ';
+                }
+            }
+
+            lvgl_port_lock(0);
+            prune_expired_lines_with_age(lines_2, &line_count_2, now, max_age_2);
+            add_wrapped_lines(lines_2, &line_count_2, max_lines_2, line_buf, now, log_font_2,
+                              content_width_2, letter_space_2);
+            rebuild_log_textarea(log_area_2, lines_2, line_count_2, max_lines_2);
+            lvgl_port_unlock();
+        }
+
         if (prune_needed) {
             bool changed = false;
             lvgl_port_lock(0);
@@ -724,6 +991,19 @@ void display_task(void *arg)
             }
             lvgl_port_unlock();
             last_prune = now;
+        }
+
+        if (prune_needed_2 && log_area_2) {
+            bool changed = false;
+            lvgl_port_lock(0);
+            int before = line_count_2;
+            prune_expired_lines_with_age(lines_2, &line_count_2, now, max_age_2);
+            changed = (before != line_count_2);
+            if (changed) {
+                rebuild_log_textarea(log_area_2, lines_2, line_count_2, max_lines_2);
+            }
+            lvgl_port_unlock();
+            last_prune_2 = now;
         }
 
         if (indicator_needed) {
@@ -752,12 +1032,12 @@ void display_task(void *arg)
 void display_make_tasks(void)
 {
     ESP_ERROR_CHECK(app_lcd_init());
-    TaskHandle_t screen2_task = NULL;
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-    xTaskCreatePinnedToCore(screen2_test_task, "screen2_test", 4096, current_task, 5, &screen2_task, 1);
-    if (screen2_task) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    }
+#if SCREEN2_EARLY_PANEL_TEST
+    ESP_LOGE(TAG, "display_make_tasks: early screen2 scan bands");
+    screen2_panel_scan_bands();
+    screen2_fill_color(0x0000);
+    ESP_LOGE(TAG, "display_make_tasks: early screen2 scan bands done");
+#endif
     ESP_ERROR_CHECK(app_lvgl_init());
     xTaskCreatePinnedToCore(display_task, "display_task", 8192, NULL, 6, NULL, 1);
 }

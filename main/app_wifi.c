@@ -21,7 +21,7 @@ static void wifi_task(void *args)
 {
     bool was_connected = false;
 
-    ESP_LOGI(TAG, "WiFi initializing...");
+    ESP_LOGD(TAG, "WiFi initializing...");
     esp_err_t err = example_connect();
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "WiFi connect failed: %s", esp_err_to_name(err));
@@ -35,12 +35,12 @@ static void wifi_task(void *args)
             wifi_rssi = ap_info.rssi;
             xEventGroupSetBits(wifi_event_group, WIFI_STATUS_CONNECTED);
             if (!was_connected) {
-                ESP_LOGI(TAG, "WiFi connected");
+                ESP_LOGD(TAG, "WiFi connected");
             }
         } else {
             xEventGroupClearBits(wifi_event_group, WIFI_STATUS_CONNECTED);
             if (was_connected) {
-                ESP_LOGW(TAG, "WiFi disconnected");
+                ESP_LOGD(TAG, "WiFi disconnected");
             }
             esp_wifi_connect();
         }

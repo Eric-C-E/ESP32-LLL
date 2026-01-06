@@ -77,7 +77,7 @@ static void tcp_init_queues(void)
     assert(disp1_q);
     disp2_q = xQueueCreate(DISP_Q_LEN, sizeof(text_msg_t));
     assert(disp2_q);
-    ESP_LOGI(TAG, "TCP RX display queues initialized");
+    ESP_LOGD(TAG, "TCP RX display queues initialized");
 }
 
 static bool send_all(int sock, const void *buf, size_t len)
@@ -119,7 +119,7 @@ void tcp_tx_task(void *args)
     uint8_t *int_buf = (uint8_t *)calloc(1, INTERMEDIARY_BUF_SIZE);
     assert(int_buf);
     size_t rb_bytes = 0; //for appending onto TCP headers
-    ESP_LOGI(TAG, "TCP tx buffer size %zu initialized", INTERMEDIARY_BUF_SIZE);
+    ESP_LOGD(TAG, "TCP tx buffer size %zu initialized", INTERMEDIARY_BUF_SIZE);
 
     /* get ringbuffer handle */
     RingbufHandle_t audio_rb = audio_get_rb();
@@ -141,7 +141,7 @@ void tcp_tx_task(void *args)
         ESP_ERROR_CHECK(get_addr_from_stdin(PORT, SOCK_STREAM, &ip_protocol, &addr_family, &dest_addr));
         #endif
 
-        ESP_LOGI(TAG, "Socket connecting to %s:%d", host_ip, PORT);
+        ESP_LOGD(TAG, "Socket connecting to %s:%d", host_ip, PORT);
         sock = socket(addr_family, SOCK_STREAM, ip_protocol);
         if (sock < 0) {
             ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
@@ -158,7 +158,7 @@ void tcp_tx_task(void *args)
             vTaskDelay(pdMS_TO_TICKS(DELAYTIME));
             continue;
         }
-        ESP_LOGI(TAG, "Succesfully connected");
+        ESP_LOGD(TAG, "Succesfully connected");
         xSemaphoreGive(sock_ready);
 
         uint32_t tx_log_ctr = 0;
@@ -175,7 +175,7 @@ void tcp_tx_task(void *args)
                 size_t rb_bytes = 0;
                 uint8_t *rb_buf = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (rb_buf != NULL) {
-                    ESP_LOGI(TAG, "TCP tx idle state - dumped %zu bytes from audio rb", rb_bytes);
+                    ESP_LOGD(TAG, "TCP tx idle state - dumped %zu bytes from audio rb", rb_bytes);
                     vRingbufferReturnItem(audio_rb, (void *)rb_buf);
                 }
             }
@@ -184,12 +184,12 @@ void tcp_tx_task(void *args)
                 /* message synthesis */
                 uint8_t *audio = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (audio != NULL) {
-                    ESP_LOGI(TAG, "TCP tx lang1 state - read %zu bytes from audio", rb_bytes);
+                    ESP_LOGD(TAG, "TCP tx lang1 state - read %zu bytes from audio", rb_bytes);
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 1; //LANG1
                     hdr.payload_len = htonl(rb_bytes);
                     if ((tx_log_ctr++ % 100) == 0) {
-                        ESP_LOGI(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
+                        ESP_LOGD(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
                                  hdr.msg_type, hdr.flags, (int)rb_bytes);
                     }
                     /* copy header */
@@ -212,13 +212,13 @@ void tcp_tx_task(void *args)
                 /* message synthesis */
                 uint8_t *audio = (uint8_t *)xRingbufferReceiveUpTo(audio_rb, &rb_bytes, pdMS_TO_TICKS(DELAYTIME), 3072);
                 if (audio != NULL) {
-                    ESP_LOGI(TAG, "TCP tx lang2 state - read %zu bytes from audio", rb_bytes);
+                    ESP_LOGD(TAG, "TCP tx lang2 state - read %zu bytes from audio", rb_bytes);
                     /* copy header */
                     hdr.msg_type = 1; //AUDIO
                     hdr.flags = 2; //LANG2
                     hdr.payload_len = htonl(rb_bytes);
                     if ((tx_log_ctr++ % 100) == 0) {
-                        ESP_LOGI(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
+                        ESP_LOGD(TAG, "TCP tx hdr: msg_type=%d flags=%d payload_len=%d",
                                  hdr.msg_type, hdr.flags, (int)rb_bytes);
                     }
                     memcpy(int_buf, (uint8_t *)&hdr, sizeof(msg_hdr_t));
