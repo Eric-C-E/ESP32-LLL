@@ -467,7 +467,7 @@ esp_err_t app_lcd_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle_2));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle_2));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_2, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_2, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_2, LCD_INVERT_COLORS));
 
     screen1_fill_color(0x0000);
     screen2_fill_color(0x0000);
