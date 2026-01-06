@@ -1,6 +1,7 @@
 version: "0.1.0"
 description: "NV3041 LCD panel driver for ESP-IDF esp_lcd"
-license: "MIT"
+license: "Apache 2.0"
 dependencies:
+  cmake_utilities: 0.*
   idf:
-    version: ">=5.0"
+    version: ">=4.4"

@@ -6,7 +6,7 @@ dependencies:
       require: private
       version: '>=4.1'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 0.5.3
   espressif/esp_lcd_gc9a01:
@@ -171,11 +171,12 @@ dependencies:
       type: local
     version: '*'
 direct_dependencies:
+- espressif/cmake_utilities
 - espressif/esp_lcd_gc9a01
 - espressif/esp_lvgl_port
 - idf
 - lvgl/lvgl
 - protocol_examples_common
-manifest_hash: 8ee48eff98d9adbbfaf8aaf14137e04d1ed4ce09a9a57318c5e9ef8f33ea37ea
+manifest_hash: 37305d790147b73e0df5d3fedb808f9df24b32a25629cf74b9d631e614a54bde
 target: esp32s3
 version: 2.0.0
