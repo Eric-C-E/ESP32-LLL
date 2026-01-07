@@ -33,6 +33,8 @@ transcription/translation, and displays translated text on GC9A01 LCDs.
 - Lines are wrapped and truncated to fit the GC9A01 panel.
 - Each line expires after `DISPLAY_LINE_MAX_AGE_MS` (10s) so the UI scrolls.
 - Indicators show RDY/REC state and Wi-Fi RSSI.
+- Screen orientation: LVGL display rotations are set in `app_display.c` (screen1 uses `swap_xy=true, mirror_y=true`; screen2 uses `swap_xy=false, mirror_y=true`).
+- Boot logo is drawn via `show_boot_logo()` with a 90° CCW geometry rotation to match the physical screen orientation; prefer rotating specific LVGL objects rather than swapping panel axes.
 
 ## Build and flash
 ```bash

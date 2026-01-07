@@ -74,7 +74,7 @@ static const char *TAG = "display_task";
 #define LCD_PARAM_BITS_2 8
 #define LCD_BITS_PER_PIXEL_2 16
 #define LCD_DRAW_BUF_HEIGHT_2 4
-#define SCREEN2_SWAP_BYTES false
+#define SCREEN2_SWAP_BYTES true
 #define SCREEN2_LVGL_DMA true
 #define SCREEN2_TEST_MODE 2
 #define SCREEN2_TEST_SINGLE 2
@@ -124,7 +124,24 @@ static void create_logo_rect(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, 
     lv_obj_set_style_bg_opa(rect, LV_OPA_COVER, 0);
 }
 
-static void show_boot_logo(lv_display_t *disp, int32_t disp_w, int32_t disp_h)
+static void create_logo_rect_rotated_ccw(lv_obj_t *parent,
+                                         int32_t origin_x,
+                                         int32_t origin_y,
+                                         int32_t logo_w,
+                                         int32_t logo_h,
+                                         int32_t x,
+                                         int32_t y,
+                                         int32_t w,
+                                         int32_t h)
+{
+    int32_t rx = y;
+    int32_t ry = logo_w - (x + w);
+    int32_t rw = h;
+    int32_t rh = w;
+    create_logo_rect(parent, origin_x + rx, origin_y + ry, rw, rh);
+}
+
+static void show_boot_logo(lv_display_t *disp, int32_t disp_w, int32_t disp_h, int rotate_ccw)
 {
     if (!disp || disp_w <= 0 || disp_h <= 0) {
         return;
@@ -160,13 +177,23 @@ static void show_boot_logo(lv_display_t *disp, int32_t disp_w, int32_t disp_h)
         thickness = letter_h;
     }
 
-    int32_t logo_x = (disp_w - logo_w) / 2;
-    int32_t logo_y = (disp_h - logo_h) / 2;
+    int32_t draw_w = rotate_ccw ? logo_h : logo_w;
+    int32_t draw_h = rotate_ccw ? logo_w : logo_h;
+    int32_t logo_x = (disp_w - draw_w) / 2;
+    int32_t logo_y = (disp_h - draw_h) / 2;
 
     for (int i = 0; i < 3; i++) {
         int32_t top = logo_y + i * (letter_h + gap);
-        create_logo_rect(scr, logo_x, top, thickness, letter_h);
-        create_logo_rect(scr, logo_x, top + letter_h - thickness, logo_w, thickness);
+        if (rotate_ccw) {
+            int32_t local_top = i * (letter_h + gap);
+            create_logo_rect_rotated_ccw(scr, logo_x, logo_y, logo_w, logo_h,
+                                         0, local_top, thickness, letter_h);
+            create_logo_rect_rotated_ccw(scr, logo_x, logo_y, logo_w, logo_h,
+                                         0, local_top + letter_h - thickness, logo_w, thickness);
+        } else {
+            create_logo_rect(scr, logo_x, top, thickness, letter_h);
+            create_logo_rect(scr, logo_x, top + letter_h - thickness, logo_w, thickness);
+        }
     }
 
     lv_display_set_default(prev);
@@ -619,7 +646,7 @@ esp_err_t app_lcd_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle_2));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle_2));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_2, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_2, LCD_INVERT_COLORS));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_2, true));
 
     screen1_fill_color(0x0000);
     screen2_fill_color(0x0000);
@@ -745,8 +772,8 @@ void display_task(void *arg)
     ESP_LOGE(TAG, "display_task: screen2 tests end");
 
     lvgl_port_lock(0);
-    show_boot_logo(lvgl_disp, LCD_H_RES, LCD_V_RES);
-    show_boot_logo(lvgl_disp_2, LCD_H_RES_2, LCD_V_RES_2);
+    show_boot_logo(lvgl_disp, LCD_H_RES, LCD_V_RES, true);
+    show_boot_logo(lvgl_disp_2, LCD_H_RES_2, LCD_V_RES_2, true);
     lvgl_port_unlock();
     vTaskDelay(pdMS_TO_TICKS(5000));
     lvgl_port_lock(0);
