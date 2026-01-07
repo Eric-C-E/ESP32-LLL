@@ -76,14 +76,6 @@ static const char *TAG = "display_task";
 #define LCD_DRAW_BUF_HEIGHT_2 4
 #define SCREEN2_SWAP_BYTES true
 #define SCREEN2_LVGL_DMA true
-#define SCREEN2_TEST_MODE 2
-#define SCREEN2_TEST_SINGLE 2
-#define SCREEN2_TEST_OBSERVE_MS 10000
-#define SCREEN2_EARLY_PANEL_TEST 0
-#define SCREEN2_PANEL_HEIGHT 272
-#define SCREEN2_SCAN_STEP 16
-#define SCREEN2_SCAN_BAND_HEIGHT 16
-#define SCREEN2_SCAN_HOLD_MS 1000
 /*--------------------------------------*/
 #define DISPLAY_MAX_LINES 16
 #define DISPLAY_LINE_MAX_AGE_MS 10000
@@ -208,189 +200,6 @@ static void clear_display(lv_display_t *disp)
     lv_display_set_default(disp);
     lv_obj_clean(lv_scr_act());
     lv_display_set_default(prev);
-}
-
-static void screen2_panel_color_bars(void)
-{
-    static const uint16_t bars[] = {
-        0xFFFF, // white
-        0xFFE0, // yellow
-        0x07FF, // cyan
-        0x07E0, // green
-        0xF81F, // magenta
-        0xF800, // red
-        0x001F, // blue
-        0x0000, // black
-    };
-    static uint16_t line[LCD_H_RES_2];
-    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || LCD_V_RES_2 <= 0) {
-        ESP_LOGE(TAG, "screen2_panel_color_bars skipped: panel_handle_2=%p", panel_handle_2);
-        return;
-    }
-    ESP_LOGE(TAG, "screen2_panel_color_bars: handle=%p", panel_handle_2);
-    const size_t bar_count = sizeof(bars) / sizeof(bars[0]);
-    for (int x = 0; x < LCD_H_RES_2; x++) {
-        size_t idx = (size_t)(x * bar_count) / (size_t)LCD_H_RES_2;
-        if (idx >= bar_count) {
-            idx = bar_count - 1;
-        }
-        line[x] = bars[idx];
-    }
-    for (int y = 0; y < LCD_V_RES_2; y++) {
-        esp_lcd_panel_draw_bitmap(panel_handle_2, 0, y, LCD_H_RES_2, y + 1, line);
-    }
-}
-
-static void screen2_panel_scan_bands(void)
-{
-    static uint16_t line[LCD_H_RES_2];
-    if (!panel_handle_2 || LCD_H_RES_2 <= 0 || SCREEN2_PANEL_HEIGHT <= 0) {
-        ESP_LOGE(TAG, "screen2_panel_scan_bands skipped: panel_handle_2=%p", panel_handle_2);
-        return;
-    }
-    for (int x = 0; x < LCD_H_RES_2; x++) {
-        line[x] = 0xFFFF;
-    }
-    int max_y = SCREEN2_PANEL_HEIGHT - SCREEN2_SCAN_BAND_HEIGHT;
-    if (max_y < 0) {
-        max_y = 0;
-    }
-    for (int y = 0; y <= max_y; y += SCREEN2_SCAN_STEP) {
-        ESP_LOGE(TAG, "screen2 scan band y=%d", y);
-        for (int by = 0; by < SCREEN2_SCAN_BAND_HEIGHT; by++) {
-            int row = y + by;
-            esp_lcd_panel_draw_bitmap(panel_handle_2, 0, row, LCD_H_RES_2, row + 1, line);
-        }
-        vTaskDelay(pdMS_TO_TICKS(SCREEN2_SCAN_HOLD_MS));
-        screen2_fill_color(0x0000);
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-}
-
-static void screen2_lvgl_color_test(void)
-{
-    if (!lvgl_disp_2) {
-        ESP_LOGW(TAG, "screen2 LVGL color test skipped: no lvgl_disp_2");
-        return;
-    }
-    lv_display_t *prev = lv_display_get_default();
-    lv_display_set_default(lvgl_disp_2);
-    lv_obj_t *scr = lv_scr_act();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-
-    int32_t bar_w = LCD_H_RES_2 / 3;
-    int32_t bar_h = LCD_V_RES_2;
-    lv_obj_t *bar_red = lv_obj_create(scr);
-    lv_obj_remove_style_all(bar_red);
-    lv_obj_set_pos(bar_red, 0, 0);
-    lv_obj_set_size(bar_red, bar_w, bar_h);
-    lv_obj_set_style_bg_color(bar_red, lv_color_hex(0xFF0000), 0);
-    lv_obj_set_style_bg_opa(bar_red, LV_OPA_COVER, 0);
-
-    lv_obj_t *bar_green = lv_obj_create(scr);
-    lv_obj_remove_style_all(bar_green);
-    lv_obj_set_pos(bar_green, bar_w, 0);
-    lv_obj_set_size(bar_green, bar_w, bar_h);
-    lv_obj_set_style_bg_color(bar_green, lv_color_hex(0x00FF00), 0);
-    lv_obj_set_style_bg_opa(bar_green, LV_OPA_COVER, 0);
-
-    lv_obj_t *bar_blue = lv_obj_create(scr);
-    lv_obj_remove_style_all(bar_blue);
-    lv_obj_set_pos(bar_blue, bar_w * 2, 0);
-    lv_obj_set_size(bar_blue, LCD_H_RES_2 - (bar_w * 2), bar_h);
-    lv_obj_set_style_bg_color(bar_blue, lv_color_hex(0x0000FF), 0);
-    lv_obj_set_style_bg_opa(bar_blue, LV_OPA_COVER, 0);
-
-    lv_refr_now(lvgl_disp_2);
-    lv_display_set_default(prev);
-}
-
-static void screen2_lvgl_text_test(const char *text)
-{
-    if (!lvgl_disp_2) {
-        ESP_LOGW(TAG, "screen2 LVGL text test skipped: no lvgl_disp_2");
-        return;
-    }
-    lv_display_t *prev = lv_display_get_default();
-    lv_display_set_default(lvgl_disp_2);
-    lv_obj_t *scr = lv_scr_act();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-
-    lv_obj_t *label = lv_label_create(scr);
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), 0);
-    lv_obj_center(label);
-
-    lv_refr_now(lvgl_disp_2);
-    lv_display_set_default(prev);
-}
-
-typedef enum {
-    SCREEN2_TEST_PANEL_BARS = 0,
-    SCREEN2_TEST_PANEL_WHITE = 1,
-    SCREEN2_TEST_LVGL_BARS = 2,
-    SCREEN2_TEST_LVGL_TEXT = 3,
-} screen2_test_id_t;
-
-static void run_screen2_test(screen2_test_id_t test_id, TickType_t hold)
-{
-    switch (test_id) {
-        case SCREEN2_TEST_PANEL_BARS:
-            ESP_LOGE(TAG, "screen2 test: panel color bars");
-            lvgl_port_lock(0);
-            screen2_panel_color_bars();
-            vTaskDelay(hold);
-            lvgl_port_unlock();
-            break;
-        case SCREEN2_TEST_PANEL_WHITE:
-            ESP_LOGE(TAG, "screen2 test: panel solid white");
-            lvgl_port_lock(0);
-            screen2_fill_color(0xFFFF);
-            vTaskDelay(hold);
-            lvgl_port_unlock();
-            break;
-        case SCREEN2_TEST_LVGL_BARS:
-            ESP_LOGE(TAG, "screen2 test: LVGL RGB bars");
-            lvgl_port_lock(0);
-            screen2_lvgl_color_test();
-            lvgl_port_unlock();
-            vTaskDelay(hold);
-            break;
-        case SCREEN2_TEST_LVGL_TEXT:
-            ESP_LOGE(TAG, "screen2 test: LVGL text");
-            lvgl_port_lock(0);
-            screen2_lvgl_text_test("LVGL TEST");
-            lvgl_port_unlock();
-            vTaskDelay(hold);
-            break;
-        default:
-            break;
-    }
-    lvgl_port_lock(0);
-    clear_display(lvgl_disp_2);
-    lvgl_port_unlock();
-}
-
-static void run_screen2_tests(void)
-{
-#if SCREEN2_TEST_MODE
-    const TickType_t hold = pdMS_TO_TICKS(SCREEN2_TEST_OBSERVE_MS);
-    ESP_LOGE(TAG, "screen2 test sequence start (mode=%d single=%d)", SCREEN2_TEST_MODE, SCREEN2_TEST_SINGLE);
-    ESP_LOGE(TAG, "screen2 test handles: panel=%p lvgl=%p", panel_handle_2, lvgl_disp_2);
-#if SCREEN2_TEST_MODE == 2
-    run_screen2_test((screen2_test_id_t)SCREEN2_TEST_SINGLE, hold);
-#else
-    run_screen2_test(SCREEN2_TEST_PANEL_BARS, hold);
-    run_screen2_test(SCREEN2_TEST_PANEL_WHITE, hold);
-    run_screen2_test(SCREEN2_TEST_LVGL_BARS, hold);
-    run_screen2_test(SCREEN2_TEST_LVGL_TEXT, hold);
-#endif
-    ESP_LOGE(TAG, "screen2 test sequence done");
-#endif
 }
 
 static void screen1_fill_color(uint16_t color)
@@ -732,7 +541,7 @@ esp_err_t app_lvgl_init(void)
         .monochrome = false,
         .rotation = {
             .swap_xy = false,
-            .mirror_x = false,
+            .mirror_x = true,
             .mirror_y = true,
         },
         .flags = {
@@ -767,10 +576,6 @@ void display_task(void *arg)
     The 240x240 screen is operator-facing, so it has RSSI indicator and REC/RDY indicators. 
     The 480x128 screen only has text.
     */
-    ESP_LOGE(TAG, "display_task: screen2 tests begin");
-    run_screen2_tests();
-    ESP_LOGE(TAG, "display_task: screen2 tests end");
-
     lvgl_port_lock(0);
     show_boot_logo(lvgl_disp, LCD_H_RES, LCD_V_RES, true);
     show_boot_logo(lvgl_disp_2, LCD_H_RES_2, LCD_V_RES_2, true);
@@ -938,6 +743,21 @@ void display_task(void *arg)
     TickType_t last_prune = 0;
     TickType_t last_prune_2 = 0;
     const TickType_t max_age_2 = pdMS_TO_TICKS(DISPLAY_LINE_MAX_AGE_MS_2);
+    const char *init_text_1 = "Live Language Lens READY";
+    const char *init_text_2 = "Live Language Lens READY";
+
+    text_msg_t init_msg = { 0 };
+    size_t init_len = strlen(init_text_1);
+    init_msg.len = (uint16_t)init_len;
+    memcpy(init_msg.payload, init_text_1, init_len);
+    if (disp1_q && xQueueSend(disp1_q, &init_msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "display_task: init text enqueue failed for screen1");
+    }
+    init_msg.len = (uint16_t)strlen(init_text_2);
+    memcpy(init_msg.payload, init_text_2, init_msg.len);
+    if (disp2_q && xQueueSend(disp2_q, &init_msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "display_task: init text enqueue failed for screen2");
+    }
 
     while (1) {
         text_msg_t msg;
@@ -1059,12 +879,6 @@ void display_task(void *arg)
 void display_make_tasks(void)
 {
     ESP_ERROR_CHECK(app_lcd_init());
-#if SCREEN2_EARLY_PANEL_TEST
-    ESP_LOGE(TAG, "display_make_tasks: early screen2 scan bands");
-    screen2_panel_scan_bands();
-    screen2_fill_color(0x0000);
-    ESP_LOGE(TAG, "display_make_tasks: early screen2 scan bands done");
-#endif
     ESP_ERROR_CHECK(app_lvgl_init());
     xTaskCreatePinnedToCore(display_task, "display_task", 8192, NULL, 6, NULL, 1);
 }
